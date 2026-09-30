@@ -1,0 +1,3 @@
+# Regra 3.3.6 da arquitetura: unwrap()/expect() só em main.rs e em testes.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true

@@ -1,0 +1,8 @@
+[workspace]
+resolver = "3"
+members = ["apps/engine"]
+
+# Regra 3.3.6 da arquitetura: unwrap()/expect() proibidos fora de main.rs e dos testes
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

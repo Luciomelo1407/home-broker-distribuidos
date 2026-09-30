@@ -1,0 +1,152 @@
+Project simulador_bolsa {
+  database_type: 'PostgreSQL'
+  Note: '''
+  Modelo lógico do Simulador de Bolsa de Valores Multiplayer (Sistemas Distribuídos — UFS).
+  Derivado de requirements.md (v1.0) e system_design.md (30/09/2026).
+  PostgreSQL 16 é a fonte da verdade. Sessões (JWT), presença de conectados e a fila de
+  comandos ficam no Redis e NÃO são modeladas aqui.
+  Único escritor de dinheiro, ações, ordens e negócios: o Motor de Negociação.
+  '''
+}
+
+// ---------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------
+
+enum tipo_investidor {
+  humano [note: 'Jogador que usa o Home Broker']
+  agente [note: 'NPC executado pelo Serviço de Agentes (RF-019)']
+}
+
+enum perfil_agente {
+  conservador [note: 'Ordens pequenas, preço próximo ao atual']
+  agressivo [note: 'Ordens maiores, segue a tendência de preço']
+}
+
+enum lado_ordem {
+  compra
+  venda
+}
+
+enum status_ordem {
+  ABERTA
+  PARCIAL
+  EXECUTADA
+  CANCELADA
+  REJEITADA
+}
+
+// ---------------------------------------------------------------
+// Tabelas
+// ---------------------------------------------------------------
+
+Table investidores {
+  id integer [pk, increment]
+  nome_usuario varchar(50) [unique, not null]
+  senha_hash varchar(255) [not null, note: 'Hash argon2/bcrypt — nunca a senha em texto (RNF-06)']
+  tipo tipo_investidor [not null, default: 'humano']
+  perfil perfil_agente [note: 'Preenchido só quando tipo = agente; nulo para humanos']
+  saldo_disponivel decimal(15,2) [not null, note: 'CHECK (saldo_disponivel >= 0) — segunda barreira de RNF-01']
+  saldo_reservado decimal(15,2) [not null, default: 0, note: 'Soma de qtd_restante × preco_limite das compras abertas. CHECK (saldo_reservado >= 0)']
+  criado_em timestamp [not null, default: `now()`]
+
+  Note: '''
+  Humanos e agentes são o mesmo tipo de investidor: usam a mesma API e as mesmas regras (RF-019).
+  Saldo inicial vem da configuração (S-01: R$ 100.000,00). Só o Motor altera os saldos.
+  CHECK (tipo = 'agente' OR perfil IS NULL).
+  '''
+}
+
+Table ativos {
+  id integer [pk, increment]
+  codigo varchar(10) [unique, not null, note: 'Ex.: ABC3, DEF4, GHI3']
+  nome_empresa varchar(100) [not null]
+  preco_inicial decimal(15,2) [not null, note: 'Preço de lançamento (Apêndice B do SRS). CHECK (> 0)']
+  preco_referencia decimal(15,2) [not null, note: 'Base da variação % do painel: preço no início da sessão do servidor (RF-006)']
+  preco_atual decimal(15,2) [not null, note: 'Preço do último negócio; igual a preco_inicial até o primeiro negócio (RF-017)']
+  volume_negociado bigint [not null, default: 0, note: 'Total de ações negociadas; atualizado na mesma transação do negócio']
+  atualizado_em timestamp [not null, default: `now()`]
+
+  Note: 'Conjunto fixo de ativos virtuais do único mercado (S-01). Cadastrados por carga inicial (seed), não pela aplicação.'
+}
+
+Table posicoes {
+  investidor_id integer [not null]
+  ativo_id integer [not null]
+  quantidade_disponivel integer [not null, note: 'CHECK (quantidade_disponivel >= 0)']
+  quantidade_reservada integer [not null, default: 0, note: 'Ações bloqueadas por vendas abertas (RF-010). CHECK (>= 0)']
+  preco_medio decimal(15,4) [not null, default: 0, note: 'Custo médio ponderado de compra (RF-005)']
+  atualizado_em timestamp [not null, default: `now()`]
+
+  indexes {
+    (investidor_id, ativo_id) [pk]
+  }
+
+  Note: '''
+  Carteira: uma linha por investidor × ativo. Criada no cadastro com a quantidade inicial (S-01: 1.000 ações de cada ativo).
+  Quantidade total possuída = disponível + reservada.
+  '''
+}
+
+Table ordens {
+  id bigint [pk, increment, note: 'Atribuído pelo Motor (escritor único) na ordem em que processa o stream — é o desempate por tempo do livro (RF-014)']
+  investidor_id integer [not null, note: 'Sempre o userId extraído do token, nunca enviado pelo cliente (RNF-08)']
+  ativo_id integer [not null]
+  client_order_id uuid [not null, note: 'Gerado pelo cliente; o Motor ignora duplicatas (reenvio após timeout)']
+  stream_id varchar(32) [unique, note: 'ID da entrada no Redis Stream "orders"; rastreio e auditoria']
+  lado lado_ordem [not null]
+  preco_limite decimal(15,2) [not null, note: 'CHECK (preco_limite > 0)']
+  quantidade integer [not null, note: 'Quantidade original. CHECK (quantidade > 0)']
+  quantidade_executada integer [not null, default: 0, note: 'CHECK (quantidade_executada BETWEEN 0 AND quantidade)']
+  status status_ordem [not null]
+  motivo_rejeicao varchar(255) [note: 'Preenchido só quando status = REJEITADA (ex.: saldo insuficiente)']
+  criado_em timestamp [not null, default: `now()`, note: 'Horário em que o servidor aceitou a ordem']
+  atualizado_em timestamp [not null, default: `now()`]
+
+  indexes {
+    (investidor_id, client_order_id) [unique, name: 'uq_ordens_cliente_idempotencia']
+    (ativo_id, lado, status) [name: 'idx_ordens_livro', note: 'Reconstrução do livro após queda do Motor (RF-024)']
+    (investidor_id, criado_em) [name: 'idx_ordens_historico', note: 'Histórico do investidor (RF-008)']
+  }
+
+  Note: '''
+  Toda ordem recebida é gravada, inclusive as rejeitadas (aparecem no histórico — RF-008).
+  O livro de ofertas NÃO é uma tabela separada: são as ordens com status ABERTA ou PARCIAL.
+  Quantidade restante = quantidade - quantidade_executada.
+  '''
+}
+
+Table negocios {
+  id bigint [pk, increment]
+  ativo_id integer [not null]
+  ordem_compra_id bigint [not null]
+  ordem_venda_id bigint [not null]
+  preco decimal(15,2) [not null, note: 'Preço da ordem que já estava no livro (RF-015). CHECK (preco > 0)']
+  quantidade integer [not null, note: 'CHECK (quantidade > 0)']
+  executado_em timestamp [not null, default: `now()`]
+
+  indexes {
+    (ativo_id, executado_em) [name: 'idx_negocios_ativo']
+    ordem_compra_id
+    ordem_venda_id
+  }
+
+  Note: '''
+  Cada execução entre uma compra e uma venda (trade). Gravado na mesma transação que atualiza
+  ordens, saldos, posições e o preço do ativo (RF-016). Comprador e vendedor são obtidos pelas ordens.
+  '''
+}
+
+// ---------------------------------------------------------------
+// Relacionamentos
+// ---------------------------------------------------------------
+
+Ref: posicoes.investidor_id > investidores.id
+Ref: posicoes.ativo_id > ativos.id
+
+Ref: ordens.investidor_id > investidores.id
+Ref: ordens.ativo_id > ativos.id
+
+Ref: negocios.ativo_id > ativos.id
+Ref: negocios.ordem_compra_id > ordens.id
+Ref: negocios.ordem_venda_id > ordens.id

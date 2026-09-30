@@ -1,0 +1,8 @@
+.claude/
+pnpm-lock.yaml
+docs/
+target/
+**/dist/
+**/.next/
+**/out/
+**/next-env.d.ts

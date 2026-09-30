@@ -1,0 +1,62 @@
+# Ponto único de subida do sistema (RNF-09): docker compose up
+#
+# Dia 0: Postgres, Redis e o Motor, que por enquanto só aplica as migrações e sai.
+# Gateway, Home Broker, Agentes e Prometheus entram aqui na primeira semana,
+# cada um pelo seu dono (plano de implementação §3.2).
+#
+# As portas de Postgres e Redis são publicadas só em 127.0.0.1, para rodar apps e
+# testes fora do Docker durante o desenvolvimento. Na demo, só Home Broker e
+# Gateway ficam acessíveis de fora (system design §5.5).
+
+name: simulador-bolsa
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?defina no .env}
+      POSTGRES_USER: ${POSTGRES_USER:?defina no .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      # Lidas por db/init/01-papeis.sh para criar engine_app e gateway_app
+      ENGINE_DB_PASSWORD: ${ENGINE_DB_PASSWORD:?defina no .env}
+      GATEWAY_DB_PASSWORD: ${GATEWAY_DB_PASSWORD:?defina no .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  engine:
+    build:
+      context: .
+      dockerfile: apps/engine/Dockerfile
+    environment:
+      DATABASE_URL: postgres://engine_app:${ENGINE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Hoje o Motor aplica as migrações e sai. Quando tiver o laço principal,
+    # troca para "unless-stopped" (RF-024, demo CA-05).
+    restart: 'no'
+
+volumes:
+  postgres-data:

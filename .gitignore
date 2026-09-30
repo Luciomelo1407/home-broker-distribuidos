@@ -1,0 +1,21 @@
+# Segredos: só o .env.example é versionado
+.env
+.env.*
+!.env.example
+
+# Node / TypeScript
+node_modules/
+dist/
+.next/
+out/
+*.tsbuildinfo
+coverage/
+
+# Rust
+target/
+
+# Editor / SO
+.idea/
+.vscode/
+.DS_Store
+next-env.d.ts

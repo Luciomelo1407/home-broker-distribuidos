@@ -1,0 +1,6 @@
+# Apps TypeScript. O Motor (Rust) fica fora do workspace e usa o Cargo (AP-03).
+packages:
+  - apps/gateway
+  - apps/web
+  - apps/agents
+  - packages/*
