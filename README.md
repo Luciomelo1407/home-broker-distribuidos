@@ -10,7 +10,7 @@ plano de implementação estão em [`docs/`](docs/).
 > Dia 0 na §3 e tarefas por semana na §4.
 
 **Onde estamos:** o Dev 1 já entregou o esqueleto do monorepo, o compose e o banco com as migrações (na `main`),
-além da base do Gateway (`config`, `common` e `database`), que está no PR `feat/gateway-base`. Ainda faltam os
+e a base do Gateway (`config`, `common` e `database`, PR #1), também já na `main`. Ainda faltam os
 contratos v0 (`packages/contracts`, Dev 2 e Dev 4) e o domínio do Motor (Dev 3). **Amanhã é o Dia 0 de quem
 ainda não começou.**
 
@@ -52,12 +52,11 @@ ainda não começou.**
 
 ### Dev 1 — Plataforma + Gateway
 
-1. Ajustar e integrar o PR `feat/gateway-base` depois da revisão do Dev 4.
-2. **CI mínimo** no GitHub Actions: lint, Prettier e testes de TS, mais `cargo fmt`, `clippy` e `cargo test`.
-3. `gateway/observability`: logger pino com `redact` (`authorization`, `*.senha`, `*.token`), usando o
+1. **CI mínimo** no GitHub Actions: lint, Prettier e testes de TS, mais `cargo fmt`, `clippy` e `cargo test`.
+2. `gateway/observability`: logger pino com `redact` (`authorization`, `*.senha`, `*.token`), usando o
    `x-request-id` que o `common` já gera.
-4. Revisar os PRs de contratos e atualizar este README quando eles entrarem.
-5. Em seguida, `gateway/ordens` (`POST /ordens`, DTOs e espera de 3 s) até o **T-13**. Enquanto o `gateway/bus`
+3. Revisar os PRs de contratos e atualizar este README quando eles entrarem.
+4. Em seguida, `gateway/ordens` (`POST /ordens`, DTOs e espera de 3 s) até o **T-13**. Enquanto o `gateway/bus`
    do Dev 2 não existir, o resultado é simulado com `redis-cli PUBLISH` usando uma fixture.
 
 ### Dev 2 — Fila e casca do Motor (Rust + `gateway/bus` em TS)
@@ -106,10 +105,11 @@ o código depois.
 2. **Contratos do lado da tela:** JSON Schemas `evento-mercado` (`SNAPSHOT`, `ORDEM_ATUALIZADA`, `NEGOCIO`,
    `PRECO`, `LIVRO`, `PRESENCA`, `ERRO`) e `api-rest` (rotas da P1 e formato de erro), com fixtures.
    O `api-rest` precisa incluir os códigos de erro que o Gateway já usa, que estão em
-   `apps/gateway/src/common/app-error.ts`, no PR `feat/gateway-base`.
+   `apps/gateway/src/common/app-error.ts`.
 3. Em `packages/contracts/src/`: `dinheiro.ts` (conversão string ⇄ centavos inteiros, nunca `number` com
    decimais), as constantes de `stage` do RF-025 e o lado TS do **T-14** (Vitest + ajv lendo as fixtures).
-4. **Revisar o PR `feat/gateway-base`** do Dev 1. É a base do seu `auth`.
+4. **Ler a base do Gateway** (`apps/gateway/src/{config,common,database}`), que é a base do seu `auth`.
+   O PR #1 entrou sem revisão; comentários e pedidos de ajuste são bem-vindos numa issue ou num PR.
 5. Em seguida, **`gateway/auth` + seed**, até ~08/10, porque todo mundo depende do login: cadastro, login,
    argon2, JWT e guard para REST e WebSocket, até o **T-12**. Use o que já existe:
    - `DatabaseService.transacao()` para criar o investidor e as posições iniciais juntos;
@@ -120,7 +120,6 @@ o código depois.
 ### Critério de "Dia 0 fechado"
 
 - `packages/contracts` v0 integrado na `main`, com schemas, fixtures e o T-14 passando em TS e em Rust;
-- `feat/gateway-base` integrado;
 - tipos do domínio com testes na `main` (ou em PR);
 - e-mail ao professor enviado.
 
