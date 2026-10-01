@@ -3,8 +3,10 @@
   "compilerOptions": {
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "rootDir": "src",
+    "isolatedModules": true,
+    "types": ["node", "jest"],
+    "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src"]
+  "include": ["src", "test"]
 }

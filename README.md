@@ -54,7 +54,7 @@ Com o compose de pé, dá para rodar qualquer app na máquina:
 # Motor: aplica as migrações no banco do compose
 DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo run -p engine
 
-# Gateway (Nest vazio por enquanto, porta GATEWAY_PORT)
+# Gateway (porta GATEWAY_PORT; lê o .env da raiz e não sobe se faltar variável ou banco)
 pnpm install
 pnpm --filter @bolsa/gateway start:dev
 
@@ -72,6 +72,8 @@ pnpm install
 pnpm lint            # ESLint (typescript-eslint + no-floating-promises)
 pnpm format:check    # Prettier
 pnpm -r test         # Jest no Gateway, Vitest no resto
+# e2e do Gateway: precisa do Postgres com as migrações (docker compose up -d --wait postgres && docker compose up engine)
+pnpm --filter @bolsa/gateway test:e2e
 
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
