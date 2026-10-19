@@ -1,0 +1,12 @@
+{
+  "dados": {
+    "id": 1,
+    "clientOrderId": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+    "ativo": "PETR4",
+    "lado": "COMPRA",
+    "precoLimite": "35.00",
+    "quantidade": 100,
+    "quantidadeExecutada": 0,
+    "status": "ABERTA"
+  }
+}

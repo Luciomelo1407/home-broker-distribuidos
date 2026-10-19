@@ -1,0 +1,256 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bolsa.distribuidos.ufs.br/schemas/evento-mercado.json",
+  "title": "EventoMercado",
+  "description": "Eventos em tempo real enviados via WebSocket aos clientes do Home Broker e agentes.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/definitions/EventoSnapshot" },
+    { "$ref": "#/definitions/EventoOrdemAtualizada" },
+    { "$ref": "#/definitions/EventoNegocio" },
+    { "$ref": "#/definitions/EventoPreco" },
+    { "$ref": "#/definitions/EventoLivro" },
+    { "$ref": "#/definitions/EventoPresenca" },
+    { "$ref": "#/definitions/EventoErro" }
+  ],
+  "definitions": {
+    "PrecoString": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"
+    },
+    "PercentualString": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]{1,2})?$"
+    },
+    "UuidString": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "EventoSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "SNAPSHOT" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["saldo", "posicoes", "ordensAbertas", "mercado"],
+          "properties": {
+            "saldo": { "$ref": "#/definitions/PrecoString" },
+            "posicoes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ativo", "quantidadeDisponivel", "quantidadeReservada", "precoMedio"],
+                "properties": {
+                  "ativo": { "type": "string" },
+                  "quantidadeDisponivel": { "type": "integer", "minimum": 0 },
+                  "quantidadeReservada": { "type": "integer", "minimum": 0 },
+                  "precoMedio": { "$ref": "#/definitions/PrecoString" }
+                }
+              }
+            },
+            "ordensAbertas": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "clientOrderId",
+                  "ativo",
+                  "lado",
+                  "precoLimite",
+                  "quantidade",
+                  "quantidadeExecutada",
+                  "status"
+                ],
+                "properties": {
+                  "id": { "type": "integer", "minimum": 1 },
+                  "clientOrderId": { "$ref": "#/definitions/UuidString" },
+                  "ativo": { "type": "string" },
+                  "lado": { "enum": ["COMPRA", "VENDA"] },
+                  "precoLimite": { "$ref": "#/definitions/PrecoString" },
+                  "quantidade": { "type": "integer", "minimum": 1 },
+                  "quantidadeExecutada": { "type": "integer", "minimum": 0 },
+                  "status": { "enum": ["ABERTA", "PARCIAL"] }
+                }
+              }
+            },
+            "mercado": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ativo", "precoAtual", "variacao", "volume"],
+                "properties": {
+                  "ativo": { "type": "string" },
+                  "precoAtual": { "$ref": "#/definitions/PrecoString" },
+                  "variacao": { "$ref": "#/definitions/PercentualString" },
+                  "volume": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "EventoOrdemAtualizada": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "ORDEM_ATUALIZADA" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "clientOrderId",
+            "ativo",
+            "lado",
+            "precoLimite",
+            "quantidade",
+            "quantidadeExecutada",
+            "status"
+          ],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "clientOrderId": { "$ref": "#/definitions/UuidString" },
+            "ativo": { "type": "string" },
+            "lado": { "enum": ["COMPRA", "VENDA"] },
+            "precoLimite": { "$ref": "#/definitions/PrecoString" },
+            "quantidade": { "type": "integer", "minimum": 1 },
+            "quantidadeExecutada": { "type": "integer", "minimum": 0 },
+            "status": { "enum": ["ABERTA", "PARCIAL", "EXECUTADA", "CANCELADA", "REJEITADA"] },
+            "motivoRejeicao": {
+              "enum": [
+                "SALDO_INSUFICIENTE",
+                "ACOES_INSUFICIENTES",
+                "ATIVO_INEXISTENTE",
+                "ORDEM_NAO_ENCONTRADA",
+                "ORDEM_DE_OUTRO_INVESTIDOR",
+                "ORDEM_NAO_CANCELAVEL",
+                "COMANDO_EXPIRADO"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "EventoNegocio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "NEGOCIO" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "ativo", "preco", "quantidade", "momento"],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "ativo": { "type": "string" },
+            "preco": { "$ref": "#/definitions/PrecoString" },
+            "quantidade": { "type": "integer", "minimum": 1 },
+            "momento": { "type": "string" }
+          }
+        }
+      }
+    },
+    "EventoPreco": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "PRECO" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ativo", "precoAtual", "variacao", "volume"],
+          "properties": {
+            "ativo": { "type": "string" },
+            "precoAtual": { "$ref": "#/definitions/PrecoString" },
+            "variacao": { "$ref": "#/definitions/PercentualString" },
+            "volume": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "EventoLivro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "LIVRO" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["ativo", "ofertasCompra", "ofertasVenda"],
+          "properties": {
+            "ativo": { "type": "string" },
+            "ofertasCompra": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["preco", "quantidade"],
+                "properties": {
+                  "preco": { "$ref": "#/definitions/PrecoString" },
+                  "quantidade": { "type": "integer", "minimum": 1 }
+                }
+              }
+            },
+            "ofertasVenda": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["preco", "quantidade"],
+                "properties": {
+                  "preco": { "$ref": "#/definitions/PrecoString" },
+                  "quantidade": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "EventoPresenca": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "PRESENCA" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conectados"],
+          "properties": {
+            "conectados": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "EventoErro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "dados"],
+      "properties": {
+        "tipo": { "const": "ERRO" },
+        "dados": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codigo", "mensagem"],
+          "properties": {
+            "codigo": { "type": "string" },
+            "mensagem": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

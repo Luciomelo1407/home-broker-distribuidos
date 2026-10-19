@@ -1,0 +1,34 @@
+{
+  "tipo": "SNAPSHOT",
+  "dados": {
+    "saldo": "100000.00",
+    "posicoes": [
+      {
+        "ativo": "PETR4",
+        "quantidadeDisponivel": 1000,
+        "quantidadeReservada": 0,
+        "precoMedio": "35.50"
+      }
+    ],
+    "ordensAbertas": [
+      {
+        "id": 1,
+        "clientOrderId": "a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11",
+        "ativo": "PETR4",
+        "lado": "COMPRA",
+        "precoLimite": "35.00",
+        "quantidade": 100,
+        "quantidadeExecutada": 0,
+        "status": "ABERTA"
+      }
+    ],
+    "mercado": [
+      {
+        "ativo": "PETR4",
+        "precoAtual": "35.50",
+        "variacao": "1.42",
+        "volume": 50000
+      }
+    ]
+  }
+}

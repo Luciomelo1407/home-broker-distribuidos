@@ -1,0 +1,8 @@
+{
+  "erro": {
+    "codigo": "VALIDACAO",
+    "mensagem": "quantidade deve ser inteira e maior que zero",
+    "campos": ["quantidade"]
+  },
+  "requestId": "c1d2e3f4-a5b6-7890-1234-56789abcdef0"
+}

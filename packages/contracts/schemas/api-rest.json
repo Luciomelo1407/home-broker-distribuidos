@@ -1,0 +1,214 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bolsa.distribuidos.ufs.br/schemas/api-rest.json",
+  "title": "ApiRest",
+  "description": "Contratos das rotas REST e respostas de erro da Parte 1 do Simulador de Bolsa.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/definitions/RespostaErro" },
+    { "$ref": "#/definitions/AuthCadastroRequisicao" },
+    { "$ref": "#/definitions/AuthCadastroResposta" },
+    { "$ref": "#/definitions/AuthLoginRequisicao" },
+    { "$ref": "#/definitions/AuthLoginResposta" },
+    { "$ref": "#/definitions/CriarOrdemRequisicao" },
+    { "$ref": "#/definitions/OrdemResposta" },
+    { "$ref": "#/definitions/CarteiraResposta" },
+    { "$ref": "#/definitions/MercadoResposta" }
+  ],
+  "definitions": {
+    "PrecoString": {
+      "type": "string",
+      "pattern": "^[0-9]+(\\.[0-9]{1,2})?$"
+    },
+    "PercentualString": {
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]{1,2})?$"
+    },
+    "UuidString": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "RespostaErro": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["erro", "requestId"],
+      "properties": {
+        "erro": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codigo", "mensagem"],
+          "properties": {
+            "codigo": {
+              "enum": [
+                "VALIDACAO",
+                "NAO_AUTENTICADO",
+                "CREDENCIAIS_INVALIDAS",
+                "ORDEM_DE_OUTRO_INVESTIDOR",
+                "USUARIO_JA_EXISTE",
+                "NAO_CONFIRMADA",
+                "MERCADO_INDISPONIVEL",
+                "ERRO_INTERNO",
+                "ACESSO_NEGADO",
+                "NAO_ENCONTRADO",
+                "REQUISICAO_INVALIDA"
+              ]
+            },
+            "mensagem": { "type": "string" },
+            "campos": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "requestId": { "type": "string" }
+      }
+    },
+    "AuthCadastroRequisicao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nomeUsuario", "senha"],
+      "properties": {
+        "nomeUsuario": { "type": "string", "minLength": 3, "maxLength": 50 },
+        "senha": { "type": "string", "minLength": 6, "maxLength": 100 }
+      }
+    },
+    "AuthCadastroResposta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "nomeUsuario", "saldoDisponivel"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "nomeUsuario": { "type": "string" },
+        "saldoDisponivel": { "$ref": "#/definitions/PrecoString" }
+      }
+    },
+    "AuthLoginRequisicao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nomeUsuario", "senha"],
+      "properties": {
+        "nomeUsuario": { "type": "string", "minLength": 3, "maxLength": 50 },
+        "senha": { "type": "string", "minLength": 6, "maxLength": 100 }
+      }
+    },
+    "AuthLoginResposta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token", "investidor"],
+      "properties": {
+        "token": { "type": "string" },
+        "investidor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "nomeUsuario"],
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "nomeUsuario": { "type": "string" }
+          }
+        }
+      }
+    },
+    "CriarOrdemRequisicao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientOrderId", "ativo", "lado", "quantidade", "preco"],
+      "properties": {
+        "clientOrderId": { "$ref": "#/definitions/UuidString" },
+        "ativo": { "type": "string" },
+        "lado": { "enum": ["COMPRA", "VENDA"] },
+        "quantidade": { "type": "integer", "minimum": 1 },
+        "preco": { "$ref": "#/definitions/PrecoString" }
+      }
+    },
+    "OrdemResposta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "clientOrderId",
+        "investidorId",
+        "ativo",
+        "lado",
+        "precoLimite",
+        "quantidade",
+        "quantidadeExecutada",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "clientOrderId": { "$ref": "#/definitions/UuidString" },
+        "investidorId": { "type": "integer", "minimum": 1 },
+        "ativo": { "type": "string" },
+        "lado": { "enum": ["COMPRA", "VENDA"] },
+        "precoLimite": { "$ref": "#/definitions/PrecoString" },
+        "quantidade": { "type": "integer", "minimum": 1 },
+        "quantidadeExecutada": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["ABERTA", "PARCIAL", "EXECUTADA", "CANCELADA", "REJEITADA"] },
+        "motivoRejeicao": {
+          "enum": [
+            "SALDO_INSUFICIENTE",
+            "ACOES_INSUFICIENTES",
+            "ATIVO_INEXISTENTE",
+            "ORDEM_NAO_ENCONTRADA",
+            "ORDEM_DE_OUTRO_INVESTIDOR",
+            "ORDEM_NAO_CANCELAVEL",
+            "COMANDO_EXPIRADO"
+          ]
+        }
+      }
+    },
+    "CarteiraResposta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["saldoDisponivel", "saldoReservado", "posicoes"],
+      "properties": {
+        "saldoDisponivel": { "$ref": "#/definitions/PrecoString" },
+        "saldoReservado": { "$ref": "#/definitions/PrecoString" },
+        "posicoes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ativo", "quantidadeDisponivel", "quantidadeReservada", "precoMedio"],
+            "properties": {
+              "ativo": { "type": "string" },
+              "quantidadeDisponivel": { "type": "integer", "minimum": 0 },
+              "quantidadeReservada": { "type": "integer", "minimum": 0 },
+              "precoMedio": { "$ref": "#/definitions/PrecoString" }
+            }
+          }
+        }
+      }
+    },
+    "MercadoResposta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ativos"],
+      "properties": {
+        "ativos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "codigo",
+              "nomeEmpresa",
+              "precoAtual",
+              "precoReferencia",
+              "variacao",
+              "volume"
+            ],
+            "properties": {
+              "codigo": { "type": "string" },
+              "nomeEmpresa": { "type": "string" },
+              "precoAtual": { "$ref": "#/definitions/PrecoString" },
+              "precoReferencia": { "$ref": "#/definitions/PrecoString" },
+              "variacao": { "$ref": "#/definitions/PercentualString" },
+              "volume": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
