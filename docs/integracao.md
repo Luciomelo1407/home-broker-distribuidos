@@ -140,6 +140,14 @@
 
 ### Dev 3 (núcleo do Motor)
 
+- **O app `agents` foi escrito pelo Dev 1** (PR `feat/agentes`), com as estratégias conservadora e
+  agressiva em `apps/agents/src/estrategias` (funções puras, testadas com sorteio fixo). As
+  regras de cada perfil e o comportamento observado estão em [`docs/agentes.md`](agentes.md).
+  Revise o PR; daqui em diante o módulo é seu (plano §2). O RF-021 (eventos econômicos) não foi
+  feito.
+- O `agents` roda direto no Node 24, sem build (remoção de tipos nativa): imports com `.ts` e só
+  sintaxe apagável (`erasableSyntaxOnly`, sem `enum` nem parameter properties).
+
 - Nenhuma mudança no `domain/`. A casca usa `Estado::criar`/`Estado::cancelar` como descrito em
   `docs/div3-nucleo-motor.md`.
 - `Estado.ordens` guarda também as ordens já executadas e canceladas desde a subida. Depois de um
@@ -150,8 +158,11 @@
 
 - **O `gateway/auth` foi escrito pelo Dev 1** (PR `feat/gateway-auth`), porque o fluxo da Parte 1
   não fechava sem login: cadastro (investidor + posições numa transação), login, argon2id, JWT e o
-  guard (§4). Revise o PR; daqui em diante o módulo é seu. **Falta o seed dos agentes**
-  (`database/seed`, AP-05), que depende do número e das senhas dos agentes.
+  guard (§4). Revise o PR; daqui em diante o módulo é seu.
+- **O seed dos agentes também foi escrito pelo Dev 1** (`auth/seed-agentes.ts`, PR
+  `feat/agentes`): roda a cada subida do Gateway e cria os que faltam, com as variáveis
+  `AGENTES_CONSERVADORES`, `AGENTES_AGRESSIVOS` e `AGENTES_SENHA` (obrigatórias, validadas). Fica
+  no `auth`, e não em `database/seed`, porque usa o mesmo hash argon2 do cadastro.
 - **O `GET /carteira` P1 também foi escrito pelo Dev 1** (PR `feat/gateway-carteira`), porque o
   `SNAPSHOT` do WebSocket usa as mesmas consultas (`carteira.queries.ts`: `buscarCarteira` e
   `listarOrdensAbertas`). Faltam a parte P2 (patrimônio, P/L) e o histórico (RF-008).
@@ -204,7 +215,12 @@
 
 - **Node 24.9 ou mais novo** (o Jest só carrega o Nest 12, que é ESM, a partir dele). No Node 22,
   os testes do Gateway quebram com "Must use import to load ES Module".
-- **Nova variável `LOG_LEVEL`** no `.env` (copie do `.env.example`). Sem ela, o Gateway não sobe.
+- **Variáveis novas no `.env`** (copie do `.env.example`): `LOG_LEVEL`, `AGENTES_CONSERVADORES`,
+  `AGENTES_AGRESSIVOS`, `AGENTES_SENHA` e `PROMETHEUS_PORT`. Sem as quatro primeiras, o Gateway
+  não sobe.
+- **Os agentes negociam o tempo todo no compose.** Testes que dependem do preço exato de um ativo
+  precisam tolerar negócios de terceiros (veja `precoNoSpread` e o RF-017 em
+  `realtime.e2e-spec.ts`). Para um banco parado, `docker compose stop agents`.
 - **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust, a integração do
   Motor e o e2e do Gateway em todo PR.
 - **Os e2e e o k6 escrevem no banco do compose** (investidores `e2e-*`/`ws-*`/`k6-*`, ordens e

@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
@@ -88,5 +89,24 @@ describe('auth (T-12)', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.erro.codigo).toBe('NAO_AUTENTICADO');
+  });
+
+  it('o seed cria os agentes com tipo e perfil, e eles entram como um humano (RF-019)', async () => {
+    const { rows } = await db.query<{ nome: string; tipo: string; perfil: string }>(
+      `SELECT nome_usuario AS nome, tipo::text, perfil::text FROM investidores
+        WHERE nome_usuario IN ('agente-conservador-1', 'agente-agressivo-1') ORDER BY 1`,
+    );
+    expect(rows).toEqual([
+      { nome: 'agente-agressivo-1', tipo: 'agente', perfil: 'agressivo' },
+      { nome: 'agente-conservador-1', tipo: 'agente', perfil: 'conservador' },
+    ]);
+
+    const login = await http()
+      .post('/auth/login')
+      .send({
+        nomeUsuario: 'agente-conservador-1',
+        senha: app.get(ConfigService).get<string>('AGENTES_SENHA'),
+      });
+    expect(login.status).toBe(200);
   });
 });

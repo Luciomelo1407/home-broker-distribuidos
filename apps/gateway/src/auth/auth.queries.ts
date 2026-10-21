@@ -48,3 +48,21 @@ export async function buscarParaLogin(
   );
   return rows[0];
 }
+
+/**
+ * Investidor-agente (RF-019, AP-05). `undefined` se o nome já existe: o seed roda a cada
+ * subida e não mexe em quem já negociou.
+ */
+export async function inserirAgente(
+  db: Executor,
+  agente: { nomeUsuario: string; senhaHash: string; perfil: string; saldoInicial: string },
+): Promise<number | undefined> {
+  const { rows } = await db.query<{ id: number }>(
+    `INSERT INTO investidores (nome_usuario, senha_hash, tipo, perfil, saldo_disponivel)
+     VALUES ($1, $2, 'agente', $3::perfil_agente, $4)
+     ON CONFLICT (nome_usuario) DO NOTHING
+     RETURNING id`,
+    [agente.nomeUsuario, agente.senhaHash, agente.perfil, agente.saldoInicial],
+  );
+  return rows[0]?.id;
+}

@@ -28,6 +28,10 @@ importers:
         version: 8.71.0(eslint@10.11.0)(typescript@6.0.3)
 
   apps/agents:
+    dependencies:
+      '@bolsa/contracts':
+        specifier: workspace:^
+        version: link:../../packages/contracts
     devDependencies:
       vitest:
         specifier: ^5.0.3

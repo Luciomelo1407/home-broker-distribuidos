@@ -6,6 +6,7 @@ import type { AppConfig } from '../config/config.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtGuard } from './jwt.guard';
+import { SeedAgentes } from './seed-agentes';
 
 /**
  * Cadastro, login e JWT (RF-001, RF-002, RNF-06). Global porque o `realtime` usa
@@ -28,7 +29,7 @@ import { JwtGuard } from './jwt.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, { provide: APP_GUARD, useClass: JwtGuard }],
+  providers: [AuthService, SeedAgentes, { provide: APP_GUARD, useClass: JwtGuard }],
   exports: [AuthService],
 })
 export class AuthModule {}

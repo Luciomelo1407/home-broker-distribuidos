@@ -153,10 +153,15 @@ describe('WebSocket /ws', () => {
     await new Promise((r) => setTimeout(r, 100));
     await expect(outro.esperar('ORDEM_ATUALIZADA')).rejects.toThrow('sem ORDEM_ATUALIZADA');
 
-    // E o GET /mercado já reflete o negócio (RF-017)
+    // E o GET /mercado acompanha os PRECO (RF-017). Os agentes do compose podem ter feito
+    // outro negócio no ativo depois do nosso, então vale qualquer preço que chegou por evento
     const mercado = await request(app.getHttpServer()).get('/mercado');
     const negociado = mercado.body.ativos.find((a: { codigo: string }) => a.codigo === ativo);
-    expect(negociado.precoAtual).toBe(preco);
+    await new Promise((r) => setTimeout(r, 100));
+    const recebidos = outro.recebidas.flatMap((e) =>
+      e.tipo === 'PRECO' && e.dados.ativo === ativo ? [e.dados.precoAtual] : [],
+    );
+    expect(recebidos).toContain(negociado.precoAtual);
   });
 
   it('RF-007: uma ordem que não casa aparece no livro de todos, agregada por preço', async () => {
