@@ -44,6 +44,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 21  | `feat/web-p2`                      | Home Broker P2: livro, cancelar, histórico, patrimônio e P/L  | **Dev 4**         |
 | 22  | `feat/db-preco-medio-inicial`      | migração 0004: preço médio inicial = preço do ativo           | todos             |
 | 23  | `feat/agentes`                     | seed dos agentes e app `agents` com 2 perfis (RF-019, RF-020) | **Dev 3** + Dev 4 |
+| 24  | `test/engine-t06`                  | T-06 e integração do Motor robusta ao livro dos agentes       | **Dev 2**         |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -63,7 +64,7 @@ decidido em nome de cada um.
 | Dono  | Pendência                                                                                        |
 | ----- | ------------------------------------------------------------------------------------------------ |
 | Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker |
-| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05      |
+| Dev 2 | métricas do Motor (RF-026), roteiro da demo CA-05                                                |
 | Dev 3 | revisar o `agents` (`docs/agentes.md`); RF-021 (eventos econômicos, Could) se sobrar tempo       |
 | Dev 4 | revisar `auth`, seed, `carteira` e `web` (P1 e P2)                                               |
 
@@ -170,7 +171,7 @@ cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
 # integração do Motor (T-07, T-08, T-09, T-11) contra o Postgres do compose,
-# com o Motor do compose parado (o teste é um segundo escritor): docker compose stop engine
+# com o Motor e os agentes parados (o teste é um segundo escritor): docker compose stop engine agents
 TEST_DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo test -p engine --test processor
 ```
 

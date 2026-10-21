@@ -4,9 +4,12 @@
 //! serve: `postgres://engine_app:engine_dev@localhost:5432/bolsa`). Sem ela, o teste
 //! avisa e passa, para que `cargo test` continue rodando sem Docker.
 //!
-//! **Pare o Motor do compose antes** (`docker compose stop engine`): este teste é um segundo
-//! escritor no mesmo banco, e os dois juntos quebram a premissa de escritor único (o T-07
-//! pode falhar). No CI ele roda antes de o Motor subir.
+//! **Pare o Motor e os agentes do compose antes** (`docker compose stop engine agents`):
+//! este teste é um segundo escritor no mesmo banco, e os dois juntos quebram a premissa de
+//! escritor único (o T-07 pode falhar). No CI ele roda antes de o Motor subir.
+//!
+//! Os cenários do T-11 e do T-06 cancelam as ordens abertas do ativo que usam (pelo
+//! domínio, em nome de cada dono), porque o banco do compose tem ordens dos agentes.
 #![allow(clippy::unwrap_used, clippy::expect_used)] // testes: permitido pela regra 3.3.6
 
 use engine::contract::{MotivoRejeicao, ResultadoOrdem, StatusContrato};
@@ -100,6 +103,34 @@ fn criar(cliente: &str, investidor: i32, ativo: &str, lado: &str, qtd: u32, prec
     )
 }
 
+/// Cancela, em nome de cada dono, as ordens abertas do ativo, pelo próprio domínio. O banco
+/// do compose tem ordens dos agentes e de outros testes, e os cenários abaixo precisam de
+/// um livro vazio para casar só entre os investidores que eles criam.
+async fn esvaziar_livro(pool: &PgPool, p: &mut Processador, codigo: &str) {
+    let id: i32 = sqlx::query_scalar("SELECT id FROM ativos WHERE codigo = $1")
+        .bind(codigo)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    let abertas: Vec<(i32, i64)> = p
+        .estado()
+        .livros
+        .get(&id)
+        .map(|livro| livro.ordens().map(|o| (o.investidor_id, o.id)).collect())
+        .unwrap_or_default();
+    for (dono, ordem) in abertas {
+        let cancelar = format!(
+            r#"{{"tipo":"CANCELAR","clientOrderId":"{}","investidorId":{dono},"ordemId":{ordem}}}"#,
+            uuid()
+        );
+        enviar(p, &cancelar, agora_ms()).await;
+    }
+    assert_eq!(
+        p.estado().livros.get(&id).map_or(0, |l| l.ordens().count()),
+        0
+    );
+}
+
 async fn enviar(p: &mut Processador, payload: &str, chegada_ms: u64) -> ResultadoOrdem {
     let id = stream_id(chegada_ms);
     p.processar(
@@ -140,6 +171,7 @@ async fn processor_contra_postgres() {
     t11_cancelar_parcial_devolve_a_reserva_restante(&pool, &mut p).await;
     cancelar_ordem_de_outro_nao_revela_nada(&pool, &mut p).await;
     investidor_inexistente_e_descartado(&mut p).await;
+    t06_falha_no_meio_da_gravacao_nao_muda_nada(&pool, &mut p).await;
     t07_livro_reconstruido_igual(&pool, &p).await;
 }
 
@@ -203,7 +235,7 @@ async fn t09_comando_vencido_e_descartado(pool: &PgPool, p: &mut Processador) {
 
 async fn t11_cancelar_parcial_devolve_a_reserva_restante(pool: &PgPool, p: &mut Processador) {
     let (vendedor, comprador) = (investidor(pool).await, investidor(pool).await);
-    // Bem acima do preço de GHI3 (R$ 10), para não casar com ordens de outros cenários
+    esvaziar_livro(pool, p, "GHI3").await;
     let preco = "900.00";
     enviar(
         p,
@@ -274,12 +306,111 @@ async fn cancelar_ordem_de_outro_nao_revela_nada(pool: &PgPool, p: &mut Processa
     );
 }
 
+/// Retrato do que o T-06 confere: as contas, posições e ordens dos dois investidores.
+async fn retrato(pool: &PgPool, ids: [i32; 2]) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT format('%s|%s|%s', i.id, i.saldo_disponivel, i.saldo_reservado) FROM investidores i
+          WHERE i.id = ANY($1)
+         UNION ALL
+         SELECT format('%s|%s|%s|%s', investidor_id, ativo_id, quantidade_disponivel,
+                       quantidade_reservada) FROM posicoes WHERE investidor_id = ANY($1)
+         UNION ALL
+         SELECT format('%s|%s|%s', id, status, quantidade_executada) FROM ordens
+          WHERE investidor_id = ANY($1)
+         ORDER BY 1",
+    )
+    .bind(ids.to_vec())
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+async fn t06_falha_no_meio_da_gravacao_nao_muda_nada(pool: &PgPool, p: &mut Processador) {
+    let (vendedor, comprador) = (investidor(pool).await, investidor(pool).await);
+    esvaziar_livro(pool, p, "DEF4").await;
+    let preco = "777.77";
+    enviar(
+        p,
+        &criar(&uuid(), vendedor, "DEF4", "VENDA", 5, preco),
+        agora_ms(),
+    )
+    .await;
+    let antes_banco = retrato(pool, [vendedor, comprador]).await;
+    let antes_memoria = p.estado().clone();
+
+    // Falha forçada no INSERT do negócio: a ordem do comprador já foi gravada na mesma
+    // transação, e as contas viriam depois (store::gravar_resultado)
+    sqlx::raw_sql(
+        "CREATE FUNCTION t06_falha() RETURNS trigger LANGUAGE plpgsql AS $$
+         BEGIN RAISE EXCEPTION 'T-06: falha forçada'; END $$;
+         CREATE TRIGGER t06_falha BEFORE INSERT ON negocios
+           FOR EACH ROW EXECUTE FUNCTION t06_falha();",
+    )
+    .execute(pool)
+    .await
+    .unwrap();
+    let id = stream_id(agora_ms());
+    let comando = criar(&uuid(), comprador, "DEF4", "COMPRA", 5, preco);
+    let resultado = p
+        .processar(
+            &Entrada {
+                stream_id: &id,
+                payload: Some(&comando),
+            },
+            agora_ms(),
+        )
+        .await;
+    sqlx::raw_sql("DROP TRIGGER t06_falha ON negocios; DROP FUNCTION t06_falha();")
+        .execute(pool)
+        .await
+        .unwrap();
+
+    // O Motor para (fail-fast) em vez de seguir com um estado que não foi gravado
+    assert!(
+        resultado.is_err(),
+        "a falha de gravação tem de subir como erro"
+    );
+    assert_eq!(
+        retrato(pool, [vendedor, comprador]).await,
+        antes_banco,
+        "o banco mudou"
+    );
+    // T-06: o livro, as ordens e o mercado em memória continuam os de antes do comando. A
+    // conta do comprador pode ter sido lida do banco (cache), mas nenhuma conta mudou
+    let depois = p.estado();
+    assert_eq!(
+        depois.livros, antes_memoria.livros,
+        "o livro em memória mudou"
+    );
+    assert_eq!(
+        depois.ordens, antes_memoria.ordens,
+        "as ordens em memória mudaram"
+    );
+    assert_eq!(
+        depois.mercados, antes_memoria.mercados,
+        "o mercado em memória mudou"
+    );
+    for (id, conta) in &antes_memoria.contas {
+        assert_eq!(depois.contas.get(id), Some(conta), "a conta {id} mudou");
+    }
+}
+
 async fn t07_livro_reconstruido_igual(pool: &PgPool, p: &Processador) {
     let reiniciado = Processador::iniciar(pool.clone(), TIMEOUT_MS)
         .await
         .unwrap();
 
-    assert_eq!(reiniciado.estado().livros, p.estado().livros);
+    // Um ativo cujo livro esvaziou fica com um Livro vazio em memória e sem entrada na
+    // recarga: para o T-07 é o mesmo livro
+    let nao_vazios = |estado: &engine::domain::Estado| {
+        estado
+            .livros
+            .iter()
+            .filter(|(_, livro)| livro.ordens().next().is_some())
+            .map(|(id, livro)| (*id, livro.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(nao_vazios(reiniciado.estado()), nao_vazios(p.estado()));
     assert_eq!(reiniciado.estado().mercados, p.estado().mercados);
     for (id, conta) in &reiniciado.estado().contas {
         assert_eq!(Some(conta), p.estado().contas.get(id), "conta {id}");
