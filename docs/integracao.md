@@ -75,11 +75,34 @@
 - Dinheiro no contrato Rust continua `String`, e a conversão é feita por `contract::decimal()`, para
   que a ida e volta do T-14 seja exata.
 - `lib.rs` agora também exporta `contract` (antes só `domain`).
+- **A casca do Motor também foi escrita pelo Dev 1** (PR `feat/engine-casca`), porque sem ela não
+  havia fluxo de ponta a ponta para a Parte 1. O que existe, e é seu daqui em diante:
+  - `config.rs`: `DATABASE_URL`, `REDIS_URL`, `ORDEM_TIMEOUT_MS` (obrigatórias) e
+    `ENGINE_CONSUMIDOR` (padrão `engine-1`);
+  - `bus/`: consumidor do grupo `engine` (pendentes primeiro, depois `XREADGROUP BLOCK 1000`),
+    `PUBLISH` em `ordens.resultado` e batimento a cada 1 s;
+  - `store/`: carga do estado (ativos, ordens `ABERTA`/`PARCIAL`, contas dos donos), conta carregada
+    sob demanda para investidores novos, e gravação de cada `Resultado` numa transação;
+  - `processor.rs`: idempotência, descarte por idade, `Estado::criar`/`cancelar`, troca do estado só
+    depois do COMMIT, logs com todos os stages do RF-025;
+  - `main.rs`: processa, publica e só então dá `XACK`. Qualquer erro de banco ou Redis encerra o
+    processo (fail-fast), e o compose o sobe de novo (`restart: unless-stopped`).
+- O id da ordem vem de `nextval` **antes** do domínio, porque o domínio precisa dele para o desempate
+  (RF-014). Ordens rejeitadas também são gravadas (`REJEITADA` + motivo), inclusive as vencidas
+  (`COMANDO_EXPIRADO`). Cancelamento recusado não grava nada.
+- `Rejeicao::ValorInvalido` na criação (total que não cabe em `decimal(15,2)`) vira
+  `SALDO_INSUFICIENTE` na compra e `ACOES_INSUFICIENTES` na venda. `EstadoInvalido` para o Motor.
+- Testes: `tests/processor.rs` cobre **T-07, T-08, T-09 e T-11** contra o Postgres real, com
+  `TEST_DATABASE_URL` (o CI define). **Ainda faltam o T-06** (falha forçada no meio da gravação) e
+  as métricas (RF-026).
 
 ### Dev 3 (núcleo do Motor)
 
 - Nenhuma mudança no `domain/`. A casca usa `Estado::criar`/`Estado::cancelar` como descrito em
   `docs/div3-nucleo-motor.md`.
+- `Estado.ordens` guarda também as ordens já executadas e canceladas desde a subida. Depois de um
+  reinício, só as abertas voltam; por isso o processor consulta o banco quando `cancelar` devolve
+  `OrdemNaoEncontrada` ou `OrdemNaoCancelavel`, para responder o motivo certo.
 
 ### Dev 4 (auth + Home Broker)
 
@@ -87,11 +110,18 @@
 - `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: arredonde
   no SQL do `carteira` (`round(preco_medio, 2)::text`).
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
+- **Decisão pendente (grupo):** as posições iniciais do cadastro ficam com `preco_medio = 0`, porque
+  o `gateway_app` só pode inserir `investidor_id`, `ativo_id` e `quantidade_disponivel`. A primeira
+  compra puxa a média para baixo (ex.: 1.000 ações a 0 + 100 a R$ 102 = média R$ 9,27). Se o grupo
+  quiser a média inicial igual ao `preco_inicial` do ativo, é preciso uma migração nova que libere
+  essa coluna no `GRANT` (ou um `DEFAULT` calculado).
 
 ### Todos
 
 - **Node 24.9 ou mais novo** (o Jest só carrega o Nest 12, que é ESM, a partir dele). No Node 22,
   os testes do Gateway quebram com "Must use import to load ES Module".
 - **Nova variável `LOG_LEVEL`** no `.env` (copie do `.env.example`). Sem ela, o Gateway não sobe.
-- **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust e o e2e do Gateway
-  em todo PR.
+- **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust, a integração do
+  Motor e o e2e do Gateway em todo PR.
+- O **Motor agora fica de pé** no compose (`restart: unless-stopped`) e precisa de `REDIS_URL` e
+  `ORDEM_TIMEOUT_MS`, que o compose já repassa.

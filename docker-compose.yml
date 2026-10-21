@@ -1,8 +1,7 @@
 # Ponto único de subida do sistema (RNF-09): docker compose up
 #
-# Dia 0: Postgres, Redis e o Motor, que por enquanto só aplica as migrações e sai.
-# Gateway, Home Broker, Agentes e Prometheus entram aqui na primeira semana,
-# cada um pelo seu dono (plano de implementação §3.2).
+# Postgres, Redis, o Motor (aplica as migrações e consome o stream "orders") e o Gateway.
+# Home Broker, Agentes e Prometheus entram aqui pelo seu dono (plano de implementação §3.2).
 #
 # As portas de Postgres e Redis são publicadas só em 127.0.0.1, para rodar apps e
 # testes fora do Docker durante o desenvolvimento. Na demo, só Home Broker e
@@ -49,14 +48,15 @@ services:
       dockerfile: apps/engine/Dockerfile
     environment:
       DATABASE_URL: postgres://engine_app:${ENGINE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      ORDEM_TIMEOUT_MS: ${ORDEM_TIMEOUT_MS:?defina no .env}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # Hoje o Motor aplica as migrações e sai. Quando tiver o laço principal,
-    # troca para "unless-stopped" (RF-024, demo CA-05).
-    restart: 'no'
+    # RF-024, demo CA-05: derrubado, o Docker o sobe de novo e ele reconstrói o livro
+    restart: unless-stopped
 
 volumes:
   postgres-data:

@@ -9,6 +9,18 @@ use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+/// Estágios do RF-025, com a mesma grafia de `packages/contracts/src/stage.ts`.
+pub mod stage {
+    pub const ORDER_RECEIVED: &str = "ORDER_RECEIVED";
+    pub const ORDER_VALIDATED: &str = "ORDER_VALIDATED";
+    pub const ORDER_BOOK_INSERTED: &str = "ORDER_BOOK_INSERTED";
+    pub const MATCH_FOUND: &str = "MATCH_FOUND";
+    pub const TRADE_EXECUTED: &str = "TRADE_EXECUTED";
+    pub const PORTFOLIO_UPDATED: &str = "PORTFOLIO_UPDATED";
+    pub const CLIENTS_NOTIFIED: &str = "CLIENTS_NOTIFIED";
+    pub const ORDER_REJECTED: &str = "ORDER_REJECTED";
+}
+
 /// Por que uma mensagem não segue o contrato. Serde cobre forma e tipos; isto cobre os
 /// `pattern`, `minimum` e o `if/then` dos schemas.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]

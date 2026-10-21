@@ -23,7 +23,7 @@ ainda não começou.**
    git clone git@github.com:Luciomelo1407/home-broker-distribuidos.git simulador-bolsa
    cd simulador-bolsa
    cp .env.example .env
-   docker compose up --build   # espere "engine-1 | migrações aplicadas"
+   docker compose up --build   # espere "Motor pronto" no log do engine
    pnpm install && pnpm -r test
    cargo test
    ```
@@ -147,9 +147,10 @@ Na primeira subida:
 
 1. O **Postgres 16** cria o banco `bolsa` e roda `db/init/`, que cria os papéis `engine_app` e `gateway_app`.
 2. O **Redis 7** sobe.
-3. O **Motor** (`engine`) espera o Postgres ficar saudável, aplica as migrações de `db/migrations/` e
-   **sai com código 0**. Por enquanto é só isso que ele faz. A linha `engine-1 | migrações aplicadas`
-   no log confirma que deu certo.
+3. O **Motor** (`engine`) espera o Postgres ficar saudável, aplica as migrações de `db/migrations/`,
+   reconstrói o livro a partir das ordens abertas e passa a consumir o stream `orders`. A linha
+   `"Motor pronto"` no log confirma que deu certo. Os nomes no Redis e o formato das mensagens estão
+   em [`docs/integracao.md`](docs/integracao.md).
 
 Para conferir o banco:
 
@@ -183,8 +184,9 @@ pnpm --filter @bolsa/gateway start:dev
 # Home Broker
 pnpm --filter @bolsa/web dev
 
-# Redis: enviar um comando de teste ao stream (plano §3.3)
-docker compose exec redis redis-cli XADD orders '*' payload '{...}'
+# Redis: enviar um comando de teste ao stream e ver o resultado (docs/integracao.md)
+docker compose exec redis redis-cli SUBSCRIBE ordens.resultado   # em outro terminal
+docker compose exec -T redis redis-cli XADD orders '*' payload "$(cat packages/contracts/fixtures/validas/comando-criar.json)"
 ```
 
 ## Testes e padronização
@@ -202,6 +204,8 @@ pnpm --filter @bolsa/gateway test:e2e
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+# integração do Motor (T-07, T-08, T-09, T-11) contra o Postgres do compose
+TEST_DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo test -p engine --test processor
 ```
 
 ## Estrutura
