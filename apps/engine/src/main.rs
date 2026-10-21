@@ -8,8 +8,10 @@ use engine::bus::{Consumidor, EntradaStream, Publicador};
 use engine::config::Config;
 use engine::contract::stage;
 use engine::processor::{Entrada, Processador};
+use engine::telemetry::{Metricas, ResultadoComando};
 use sqlx::postgres::PgPoolOptions;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tracing::{error, info};
 
 /// Quanto o XREADGROUP espera por comandos antes de olhar o sinal de parada de novo.
@@ -58,14 +60,30 @@ async fn rodar() -> anyhow::Result<()> {
         .context("falha ao conectar no Redis")?;
     let mut publicador = Publicador::conectar(&redis).await?;
 
-    // Batimento separado do laço: um comando demorado não faz o Motor parecer morto
+    // RF-026: GET /metrics para o Prometheus (infra/prometheus)
+    let metricas = Arc::new(Metricas::default());
+    let servidor = tokio::spawn(engine::telemetry::servir(
+        Arc::clone(&metricas),
+        config.porta_metricas,
+    ));
+    info!(porta = config.porta_metricas, "métricas em /metrics");
+
+    // Batimento separado do laço: um comando demorado não faz o Motor parecer morto. No
+    // mesmo tique, o tamanho da fila que ainda não foi lida (bolsa_fila_pendente)
     let mut batimento = publicador.clone();
+    let metricas_batimento = Arc::clone(&metricas);
     let tarefa_batimento = tokio::spawn(async move {
         let mut intervalo = tokio::time::interval(Duration::from_secs(1));
         loop {
             intervalo.tick().await;
             if let Err(erro) = batimento.bater(agora_ms()).await {
+                metricas_batimento.erro_redis();
                 error!(erro = %erro, "falha ao renovar o batimento");
+            }
+            match batimento.fila_pendente().await {
+                Ok(Some(lag)) => metricas_batimento.fila_pendente(lag),
+                Ok(None) => {}
+                Err(_) => metricas_batimento.erro_redis(),
             }
         }
     });
@@ -73,7 +91,14 @@ async fn rodar() -> anyhow::Result<()> {
     let pendentes = consumidor.pendentes().await?;
     info!(pendentes = pendentes.len(), "Motor pronto");
     for entrada in pendentes {
-        tratar(&mut processador, &mut publicador, &mut consumidor, entrada).await?;
+        tratar(
+            &mut processador,
+            &mut publicador,
+            &mut consumidor,
+            &metricas,
+            entrada,
+        )
+        .await?;
     }
 
     // SIGINT (Ctrl+C) ou SIGTERM (docker compose stop): termina o comando atual e sai
@@ -93,12 +118,14 @@ async fn rodar() -> anyhow::Result<()> {
             }
             lidas = consumidor.proximas(ESPERA_STREAM_MS) => {
                 for entrada in lidas? {
-                    tratar(&mut processador, &mut publicador, &mut consumidor, entrada).await?;
+                    tratar(&mut processador, &mut publicador, &mut consumidor, &metricas, entrada)
+                        .await?;
                 }
             }
         }
     }
     tarefa_batimento.abort();
+    servidor.abort();
     Ok(())
 }
 
@@ -108,8 +135,10 @@ async fn tratar(
     processador: &mut Processador,
     publicador: &mut Publicador,
     consumidor: &mut Consumidor,
+    metricas: &Metricas,
     entrada: EntradaStream,
 ) -> anyhow::Result<()> {
+    let inicio = Instant::now();
     let resultado = processador
         .processar(
             &Entrada {
@@ -119,8 +148,8 @@ async fn tratar(
             agora_ms(),
         )
         .await?;
-    if let Some(resultado) = resultado {
-        publicador.publicar(&resultado).await?;
+    if let Some(resultado) = &resultado {
+        publicador.publicar(resultado).await?;
         info!(
             stage = stage::CLIENTS_NOTIFIED,
             streamId = entrada.id.as_str(),
@@ -130,6 +159,19 @@ async fn tratar(
         );
     }
     consumidor.confirmar(&entrada.id).await?;
+    let (como, negocios) = match &resultado {
+        None => (ResultadoComando::Descartado, 0),
+        Some(r)
+            if r.motivo_rejeicao.is_some()
+                || r.ordem
+                    .as_ref()
+                    .is_some_and(|o| o.motivo_rejeicao.is_some()) =>
+        {
+            (ResultadoComando::Rejeitado, 0)
+        }
+        Some(r) => (ResultadoComando::Aceito, r.negocios.len()),
+    };
+    metricas.comando(como, inicio.elapsed(), negocios);
     Ok(())
 }
 

@@ -137,11 +137,13 @@
   (`COMANDO_EXPIRADO`). Cancelamento recusado não grava nada.
 - `Rejeicao::ValorInvalido` na criação (total que não cabe em `decimal(15,2)`) vira
   `SALDO_INSUFICIENTE` na compra e `ACOES_INSUFICIENTES` na venda. `EstadoInvalido` para o Motor.
-- **Métricas (RF-026):** o Gateway já expõe as dele em `GET /metrics` com os nomes da
-  arquitetura §4.3, e o Prometheus do compose (`infra/prometheus/prometheus.yml`) já tem o alvo do
-  Motor comentado. Quando o `telemetry` existir, exponha `/metrics` numa porta HTTP do Motor e
-  descomente o alvo. Use os mesmos nomes (`bolsa_ordens_processadas_total` etc.) com o rótulo
-  `job` diferenciando Gateway e Motor.
+- **Métricas do Motor (RF-026) também foram escritas pelo Dev 1** (PR `feat/engine-metricas`):
+  `telemetry/` sem dependências (atômicos + um HTTP mínimo que só responde `GET /metrics`, porta
+  `ENGINE_METRICS_PORT`, padrão 9100, só na rede interna). Mesmos nomes do Gateway, com o rótulo
+  `job` diferenciando: `bolsa_ordens_processadas_total{resultado}` (aceita, rejeitada,
+  descartada), `bolsa_ordem_latencia_segundos` (domínio → COMMIT → PUBLISH → XACK),
+  `bolsa_negocios_total`, `bolsa_fila_pendente` (o `lag` do grupo `engine`, lido a cada 1 s) e
+  `bolsa_erros_total{tipo="redis"}`. O alvo `engine` já está ativo no `prometheus.yml`.
 - Testes: `tests/processor.rs` cobre **T-06, T-07, T-08, T-09 e T-11** contra o Postgres real,
   com `TEST_DATABASE_URL` (o CI define). O T-06 cria um trigger temporário que faz o `INSERT` em
   `negocios` falhar no meio da transação e confere que o banco e o livro em memória ficam como

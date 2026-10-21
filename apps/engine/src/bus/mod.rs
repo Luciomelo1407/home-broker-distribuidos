@@ -127,6 +127,25 @@ impl Publicador {
         Ok(())
     }
 
+    /// RF-026: entradas do stream que o grupo `engine` ainda não leu (`lag` do XINFO GROUPS,
+    /// Redis 7+). `None` se o grupo não existir ou o Redis não informar.
+    pub async fn fila_pendente(&mut self) -> Result<Option<u64>, ErroBus> {
+        let grupos: Vec<std::collections::HashMap<String, redis::Value>> = redis::cmd("XINFO")
+            .arg("GROUPS")
+            .arg(STREAM_ORDENS)
+            .query_async(&mut self.conexao)
+            .await?;
+        Ok(grupos
+            .iter()
+            .find(|g| {
+                g.get("name")
+                    .and_then(|v| redis::from_redis_value_ref::<String>(v).ok())
+                    .is_some_and(|nome| nome == GRUPO)
+            })
+            .and_then(|g| g.get("lag"))
+            .and_then(|v| redis::from_redis_value_ref::<u64>(v).ok()))
+    }
+
     /// Renova `motor:heartbeat` com o horário atual (ms).
     pub async fn bater(&mut self, agora_ms: u64) -> Result<(), ErroBus> {
         let _: () = self

@@ -46,6 +46,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 23  | `feat/agentes`                     | seed dos agentes e app `agents` com 2 perfis (RF-019, RF-020) | **Dev 3** + Dev 4 |
 | 24  | `test/engine-t06`                  | T-06 e integração do Motor robusta ao livro dos agentes       | **Dev 2**         |
 | 25  | `feat/realtime-motor-fora`         | aviso de Motor fora, SIGTERM, `init`, roteiro da demo CA-05   | **Dev 2** + Dev 4 |
+| 26  | `feat/engine-metricas`             | métricas do Motor (RF-026) e alvo no Prometheus               | **Dev 2**         |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -65,7 +66,7 @@ decidido em nome de cada um.
 | Dono  | Pendência                                                                                        |
 | ----- | ------------------------------------------------------------------------------------------------ |
 | Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker |
-| Dev 2 | métricas do Motor (RF-026); ensaiar o `docs/demo-falha.md` na máquina da demo                    |
+| Dev 2 | revisar a casca do Motor e as métricas; ensaiar o `docs/demo-falha.md` na máquina da demo        |
 | Dev 3 | revisar o `agents` (`docs/agentes.md`); RF-021 (eventos econômicos, Could) se sobrar tempo       |
 | Dev 4 | revisar `auth`, seed, `carteira` e `web` (P1 e P2)                                               |
 
@@ -104,7 +105,7 @@ Na primeira subida:
    negociar sozinhos (RF-019). Regras dos perfis em [`docs/agentes.md`](docs/agentes.md);
    `docker compose logs -f agents` mostra cada ordem. Para parar: `docker compose stop agents`.
 7. O **Prometheus** fica em `http://localhost:9090` (só na máquina local) e lê `GET /metrics` do
-   Gateway a cada 5 s (RF-026).
+   Gateway e do Motor a cada 5 s (RF-026).
 
 Para testar o fluxo inteiro com `curl`:
 

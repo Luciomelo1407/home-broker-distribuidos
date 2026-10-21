@@ -3,6 +3,8 @@
 #   histogram_quantile(0.95, rate(bolsa_ordem_latencia_segundos_bucket[1m])) p95 da ordem
 #   sum(bolsa_clientes_conectados)                                           conectados
 #   rate(bolsa_gateway_process_cpu_seconds_total[30s])                       CPU do Gateway
+#   bolsa_fila_pendente{job="engine"}                                        fila do Motor
+#   rate(bolsa_negocios_total[30s])                                          negócios/s
 global:
   scrape_interval: 5s
 
@@ -10,8 +12,8 @@ scrape_configs:
   - job_name: gateway
     static_configs:
       - targets: ['gateway:3001']
-  # O Motor expõe as dele quando o telemetry do Dev 2 existir (RF-026). Descomente e
-  # ajuste a porta:
-  # - job_name: engine
-  #   static_configs:
-  #     - targets: ['engine:9100']
+  # O Motor (engine/telemetry): mesmos nomes; o rótulo job diferencia. A porta só existe na
+  # rede interna do compose (ENGINE_METRICS_PORT, padrão 9100)
+  - job_name: engine
+    static_configs:
+      - targets: ['engine:9100']

@@ -5,3 +5,4 @@ pub mod contract;
 pub mod domain;
 pub mod processor;
 pub mod store;
+pub mod telemetry;
