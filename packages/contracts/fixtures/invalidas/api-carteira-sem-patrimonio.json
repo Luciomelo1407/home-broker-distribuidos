@@ -1,0 +1,25 @@
+{
+  "saldoDisponivel": "96450.00",
+  "saldoReservado": "3550.00",
+  "posicoes": [
+    {
+      "ativo": "PETR4",
+      "quantidadeDisponivel": 1000,
+      "quantidadeReservada": 0,
+      "precoMedio": "35.50",
+      "precoAtual": "35.40",
+      "valorAtual": "35400.00",
+      "lucroPrejuizo": "-100.00"
+    },
+    {
+      "ativo": "VALE3",
+      "quantidadeDisponivel": 1000,
+      "quantidadeReservada": 200,
+      "precoMedio": "62.00",
+      "precoAtual": "61.96",
+      "valorAtual": "74352.00",
+      "lucroPrejuizo": "-48.00"
+    }
+  ],
+  "lucroPrejuizo": "-148.00"
+}

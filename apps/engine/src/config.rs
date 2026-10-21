@@ -17,6 +17,8 @@ pub struct Config {
     pub ordem_timeout_ms: u64,
     /// Nome deste consumidor no grupo `engine` do stream `orders`.
     pub consumidor: String,
+    /// RF-026: porta HTTP do `GET /metrics` (padrão 9100).
+    pub porta_metricas: u16,
 }
 
 impl Config {
@@ -60,11 +62,23 @@ impl Config {
         let consumidor = ler("ENGINE_CONSUMIDOR")
             .filter(|v| !v.trim().is_empty())
             .unwrap_or_else(|| "engine-1".to_owned());
+        let porta_metricas = match ler("ENGINE_METRICS_PORT").filter(|v| !v.trim().is_empty()) {
+            None => 9100,
+            Some(valor) => valor
+                .parse::<u16>()
+                .ok()
+                .filter(|p| *p > 0)
+                .ok_or(ErroConfig {
+                    nome: "ENGINE_METRICS_PORT",
+                    motivo: "deve ser uma porta entre 1 e 65535",
+                })?,
+        };
         Ok(Self {
             database_url,
             redis_url,
             ordem_timeout_ms,
             consumidor,
+            porta_metricas,
         })
     }
 }
@@ -108,6 +122,7 @@ mod testes {
             ("REDIS_URL", "http://x"),
             ("ORDEM_TIMEOUT_MS", "0"),
             ("ORDEM_TIMEOUT_MS", "3s"),
+            ("ENGINE_METRICS_PORT", "abc"),
         ] {
             let mut pares = VALIDO.to_vec();
             pares.retain(|(k, _)| *k != nome);

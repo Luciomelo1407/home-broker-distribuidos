@@ -1,14 +1,14 @@
-import type { CarteiraRespostaDto, OrdemResumoDto } from '@bolsa/contracts';
+import type { CarteiraRespostaDto, HistoricoRespostaDto, OrdemResumoDto } from '@bolsa/contracts';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { AppError, CodigoErro } from '../common/app-error';
 import { DatabaseService } from '../database/database.service';
-import { buscarCarteira, listarOrdensAbertas } from './carteira.queries';
+import { buscarCarteira, buscarHistorico, listarOrdensAbertas } from './carteira.queries';
 
 @Injectable()
 export class CarteiraService {
   constructor(private readonly db: DatabaseService) {}
 
-  /** RF-005 (P1): saldo disponível, reservado e posições do investidor do token. */
+  /** RF-005: saldo, posições, patrimônio e P/L do investidor do token. */
   async carteira(investidorId: number): Promise<CarteiraRespostaDto> {
     const carteira = await buscarCarteira(this.db, investidorId);
     if (!carteira) {
@@ -25,5 +25,10 @@ export class CarteiraService {
   /** Ordens no livro do investidor (RF-004). */
   ordensAbertas(investidorId: number): Promise<OrdemResumoDto[]> {
     return listarOrdensAbertas(this.db, investidorId);
+  }
+
+  /** RF-008: ordens e negócios do investidor do token. */
+  historico(investidorId: number): Promise<HistoricoRespostaDto> {
+    return buscarHistorico(this.db, investidorId);
   }
 }

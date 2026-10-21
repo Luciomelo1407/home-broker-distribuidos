@@ -1,8 +1,15 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
+    // Roda direto no Node 24 (remoção de tipos nativa), sem etapa de build: os imports
+    // levam a extensão .ts e só vale sintaxe que pode ser apagada (sem enum, sem
+    // parameter properties)
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"]
   },
   "include": ["src"]
 }

@@ -65,6 +65,22 @@ export class Env {
   @IsInt({ message: 'deve ser um número inteiro' })
   @Min(0)
   ACOES_INICIAIS!: number;
+
+  // RF-019/RF-020, Q-03: agentes criados pelo seed ao subir (AP-05). O serviço `agents`
+  // lê as mesmas variáveis para saber com quem entrar
+  @ParaInteiro()
+  @IsInt({ message: 'deve ser um número inteiro' })
+  @Min(0)
+  AGENTES_CONSERVADORES!: number;
+
+  @ParaInteiro()
+  @IsInt({ message: 'deve ser um número inteiro' })
+  @Min(0)
+  AGENTES_AGRESSIVOS!: number;
+
+  @IsString()
+  @MinLength(6, { message: 'deve ter pelo menos 6 caracteres' })
+  AGENTES_SENHA!: string;
 }
 
 /**

@@ -137,7 +137,7 @@ table {
 th,
 td {
   text-align: left;
-  padding: 0.45rem 0.5rem;
+  padding: 0.45rem 0.4rem;
   border-bottom: 1px solid var(--borda);
   white-space: nowrap;
 }
@@ -227,7 +227,7 @@ tr.clicavel:hover {
 
 .grade {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
   padding: 1rem;
   max-width: 1280px;
@@ -313,4 +313,25 @@ tr.clicavel:hover {
 
 .etiqueta.parcial {
   color: var(--aviso);
+}
+
+tr.selecionado {
+  background: var(--fundo);
+  box-shadow: inset 3px 0 0 var(--destaque);
+}
+
+.livro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.livro h3 {
+  font-size: 0.85rem;
+  margin: 0 0 0.4rem;
+}
+
+button.pequeno {
+  padding: 0.2rem 0.55rem;
+  font-size: 0.8rem;
 }

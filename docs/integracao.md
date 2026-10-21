@@ -74,6 +74,11 @@
 - O servidor manda ping a cada 5 s. Quem não responde é derrubado no ping seguinte (RF-023). O
   `ws` do navegador responde ao ping sozinho, então o Home Broker não precisa fazer nada.
 - O cliente não envia mensagens: ordens vão pelo REST. O que o cliente mandar é ignorado.
+- **Motor fora (CA-05):** o Gateway confere o `motor:heartbeat` a cada 1 s. Sem batimento, manda
+  `{ "tipo": "ERRO", "dados": { "codigo": "MERCADO_INDISPONIVEL", … } }` a todos (e a quem conectar
+  enquanto ele estiver fora); quando o batimento volta, relê mercado e livro e manda um `SNAPSHOT`
+  novo a cada conexão. Para o Home Broker, basta mostrar o `ERRO` e limpá-lo no `SNAPSHOT` (o
+  reducer já faz isso). Roteiro completo em [`docs/demo-falha.md`](demo-falha.md).
 - `PRESENCA.conectados` conta **conexões**, não pessoas: duas abas do mesmo investidor contam 2.
 - **Livro (RF-007):** logo depois do `SNAPSHOT` vai um `LIVRO` por ativo, e depois um `LIVRO` para
   todos sempre que uma ordem do ativo muda. São até 5 níveis por lado, agregados por preço, com a
@@ -122,23 +127,39 @@
     sob demanda para investidores novos, e gravação de cada `Resultado` numa transação;
   - `processor.rs`: idempotência, descarte por idade, `Estado::criar`/`cancelar`, troca do estado só
     depois do COMMIT, logs com todos os stages do RF-025;
-  - `main.rs`: processa, publica e só então dá `XACK`. Qualquer erro de banco ou Redis encerra o
+  - `main.rs`: processa, publica e só então dá `XACK`. Trata SIGINT e SIGTERM terminando o comando
+    atual (o `docker compose stop` leva ~0,6 s). No compose, `init: true` faz do Motor um processo
+    filho, para um `kill -9` dentro do contêiner ser um crash que o Docker reinicia; um
+    `docker kill` conta como parada manual e **não** reinicia. Qualquer erro de banco ou Redis encerra o
     processo (fail-fast), e o compose o sobe de novo (`restart: unless-stopped`).
 - O id da ordem vem de `nextval` **antes** do domínio, porque o domínio precisa dele para o desempate
   (RF-014). Ordens rejeitadas também são gravadas (`REJEITADA` + motivo), inclusive as vencidas
   (`COMANDO_EXPIRADO`). Cancelamento recusado não grava nada.
 - `Rejeicao::ValorInvalido` na criação (total que não cabe em `decimal(15,2)`) vira
   `SALDO_INSUFICIENTE` na compra e `ACOES_INSUFICIENTES` na venda. `EstadoInvalido` para o Motor.
-- **Métricas (RF-026):** o Gateway já expõe as dele em `GET /metrics` com os nomes da
-  arquitetura §4.3, e o Prometheus do compose (`infra/prometheus/prometheus.yml`) já tem o alvo do
-  Motor comentado. Quando o `telemetry` existir, exponha `/metrics` numa porta HTTP do Motor e
-  descomente o alvo. Use os mesmos nomes (`bolsa_ordens_processadas_total` etc.) com o rótulo
-  `job` diferenciando Gateway e Motor.
-- Testes: `tests/processor.rs` cobre **T-07, T-08, T-09 e T-11** contra o Postgres real, com
-  `TEST_DATABASE_URL` (o CI define). **Ainda faltam o T-06** (falha forçada no meio da gravação) e
-  as métricas (RF-026).
+- **Métricas do Motor (RF-026) também foram escritas pelo Dev 1** (PR `feat/engine-metricas`):
+  `telemetry/` sem dependências (atômicos + um HTTP mínimo que só responde `GET /metrics`, porta
+  `ENGINE_METRICS_PORT`, padrão 9100, só na rede interna). Mesmos nomes do Gateway, com o rótulo
+  `job` diferenciando: `bolsa_ordens_processadas_total{resultado}` (aceita, rejeitada,
+  descartada), `bolsa_ordem_latencia_segundos` (domínio → COMMIT → PUBLISH → XACK),
+  `bolsa_negocios_total`, `bolsa_fila_pendente` (o `lag` do grupo `engine`, lido a cada 1 s) e
+  `bolsa_erros_total{tipo="redis"}`. O alvo `engine` já está ativo no `prometheus.yml`.
+- Testes: `tests/processor.rs` cobre **T-06, T-07, T-08, T-09 e T-11** contra o Postgres real,
+  com `TEST_DATABASE_URL` (o CI define). O T-06 cria um trigger temporário que faz o `INSERT` em
+  `negocios` falhar no meio da transação e confere que o banco e o livro em memória ficam como
+  estavam e que o processor devolve erro (o Motor para). Para rodar local, pare o Motor e os
+  agentes (`docker compose stop engine agents`); os cenários esvaziam o livro do ativo que usam,
+  cancelando pelo domínio as ordens que os agentes deixaram.
 
 ### Dev 3 (núcleo do Motor)
+
+- **O app `agents` foi escrito pelo Dev 1** (PR `feat/agentes`), com as estratégias conservadora e
+  agressiva em `apps/agents/src/estrategias` (funções puras, testadas com sorteio fixo). As
+  regras de cada perfil e o comportamento observado estão em [`docs/agentes.md`](agentes.md).
+  Revise o PR; daqui em diante o módulo é seu (plano §2). O RF-021 (eventos econômicos) não foi
+  feito.
+- O `agents` roda direto no Node 24, sem build (remoção de tipos nativa): imports com `.ts` e só
+  sintaxe apagável (`erasableSyntaxOnly`, sem `enum` nem parameter properties).
 
 - Nenhuma mudança no `domain/`. A casca usa `Estado::criar`/`Estado::cancelar` como descrito em
   `docs/div3-nucleo-motor.md`.
@@ -150,11 +171,23 @@
 
 - **O `gateway/auth` foi escrito pelo Dev 1** (PR `feat/gateway-auth`), porque o fluxo da Parte 1
   não fechava sem login: cadastro (investidor + posições numa transação), login, argon2id, JWT e o
-  guard (§4). Revise o PR; daqui em diante o módulo é seu. **Falta o seed dos agentes**
-  (`database/seed`, AP-05), que depende do número e das senhas dos agentes.
+  guard (§4). Revise o PR; daqui em diante o módulo é seu.
+- **O seed dos agentes também foi escrito pelo Dev 1** (`auth/seed-agentes.ts`, PR
+  `feat/agentes`): roda a cada subida do Gateway e cria os que faltam, com as variáveis
+  `AGENTES_CONSERVADORES`, `AGENTES_AGRESSIVOS` e `AGENTES_SENHA` (obrigatórias, validadas). Fica
+  no `auth`, e não em `database/seed`, porque usa o mesmo hash argon2 do cadastro.
 - **O `GET /carteira` P1 também foi escrito pelo Dev 1** (PR `feat/gateway-carteira`), porque o
   `SNAPSHOT` do WebSocket usa as mesmas consultas (`carteira.queries.ts`: `buscarCarteira` e
   `listarOrdensAbertas`). Faltam a parte P2 (patrimônio, P/L) e o histórico (RF-008).
+- **Carteira P2 e histórico também foram escritos pelo Dev 1** (PR `feat/gateway-carteira-p2`):
+  - `GET /carteira` ganhou `patrimonio` e `lucroPrejuizo` e, em cada posição, `precoAtual`,
+    `valorAtual` e `lucroPrejuizo`. Tudo é calculado no SQL; o P/L é
+    `(preço atual − preço médio) × (disponível + reservada)`, então começa em 0 no cadastro
+    (ver o preço médio inicial logo abaixo).
+  - `GET /historico` (RF-008): as 100 ordens mais recentes, em qualquer status, e os 100
+    negócios mais recentes em que o investidor foi comprador ou vendedor, com o `lado` e o
+    `ordemId` dele (`HistoricoResposta` no `api-rest`).
+  - O `SNAPSHOT` continua levando só a posição em si: valor e P/L vêm do REST.
 - **O `web` P1 também foi escrito pelo Dev 1** (PR `feat/web-p1`): login, cadastro e painel com
   mercado, nova ordem, minhas ordens, carteira e últimos negócios. O que existe:
   - `state/reducer.ts`: reducer puro (SNAPSHOT substitui; os demais eventos alteram), testado com as
@@ -166,10 +199,12 @@
   - a sessão fica no `localStorage` (F5 e reconexão não pedem login, RF-004);
   - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
     duplicar a ordem.
-  - Faltam: livro de ofertas na tela (RF-007; os dados já chegam, §5), histórico (RF-008),
-    patrimônio e P/L (RF-005 P2) e o botão de cancelar (RF-012; a rota `DELETE /ordens/:id` já
-    existe, §6). O `LIVRO` é ignorado pelo reducer por enquanto: basta guardá-lo por ativo. As
-    melhores ofertas do RF-006 são o primeiro nível de cada lado do livro.
+  - **P2 também feita pelo Dev 1** (PR `feat/web-p2`): livro do ativo selecionado (RF-007; clicar
+    num nível usa o preço na ordem), botão de cancelar nas ordens abertas e parciais (RF-012),
+    "Meus negócios" a partir do `GET /historico` (RF-008) e patrimônio e P/L na carteira
+    (RF-005). A carteira e o histórico não chegam por evento: são buscados de novo depois de
+    `ORDEM_ATUALIZADA`/`PRECO`, **no máximo uma vez a cada 500 ms** (`useAgendada`). Sem esse
+    limite, 50 Home Brokers com ~100 negócios/s gerariam milhares de requisições por segundo.
 - O Gateway agora aceita CORS de qualquer origem (`main.ts`). É seguro porque a sessão é um JWT no
   header, não cookie.
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o
@@ -179,17 +214,26 @@
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
 - O WebSocket e os eventos estão descritos na §5. O reducer do `web` pode ser testado com as
   fixtures `evento-*` de `packages/contracts`.
-- **Decisão pendente (grupo):** as posições iniciais do cadastro ficam com `preco_medio = 0`, porque
-  o `gateway_app` só pode inserir `investidor_id`, `ativo_id` e `quantidade_disponivel`. A primeira
-  compra puxa a média para baixo (ex.: 1.000 ações a 0 + 100 a R$ 102 = média R$ 9,27). Se o grupo
-  quiser a média inicial igual ao `preco_inicial` do ativo, é preciso uma migração nova que libere
-  essa coluna no `GRANT` (ou um `DEFAULT` calculado).
+- **Preço médio inicial (decidido pelo Dev 1, que é dono do `db`; revisável):** as ações do
+  cadastro entram com `preco_medio` igual ao `preco_inicial` do ativo, pela migração
+  `0004_preco_medio_inicial.sql`. Antes elas entravam com 0, e o P/L de quem acabava de se
+  cadastrar mostrava R$ 136 mil de "lucro". O `gateway_app` não pode escrever essa coluna, então
+  quem põe o valor é um trigger, e **só nas inserções do `gateway_app`**: as do Motor nunca são
+  alteradas, para o banco não ficar diferente da memória dele. A migração também corrige as
+  posições iniciais que já existiam. Posições que o Motor já tinha recalculado a partir do 0
+  continuam como estavam; num banco novo isso não acontece. Para voltar atrás, uma migração nova
+  com `DROP TRIGGER tg_posicoes_preco_medio_inicial` basta.
 
 ### Todos
 
 - **Node 24.9 ou mais novo** (o Jest só carrega o Nest 12, que é ESM, a partir dele). No Node 22,
   os testes do Gateway quebram com "Must use import to load ES Module".
-- **Nova variável `LOG_LEVEL`** no `.env` (copie do `.env.example`). Sem ela, o Gateway não sobe.
+- **Variáveis novas no `.env`** (copie do `.env.example`): `LOG_LEVEL`, `AGENTES_CONSERVADORES`,
+  `AGENTES_AGRESSIVOS`, `AGENTES_SENHA` e `PROMETHEUS_PORT`. Sem as quatro primeiras, o Gateway
+  não sobe.
+- **Os agentes negociam o tempo todo no compose.** Testes que dependem do preço exato de um ativo
+  precisam tolerar negócios de terceiros (veja `precoNoSpread` e o RF-017 em
+  `realtime.e2e-spec.ts`). Para um banco parado, `docker compose stop agents`.
 - **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust, a integração do
   Motor e o e2e do Gateway em todo PR.
 - **Os e2e e o k6 escrevem no banco do compose** (investidores `e2e-*`/`ws-*`/`k6-*`, ordens e

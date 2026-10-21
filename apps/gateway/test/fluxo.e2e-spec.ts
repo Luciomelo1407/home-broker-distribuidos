@@ -117,6 +117,12 @@ describe('POST /ordens com o Motor real', () => {
     const carteira = await http().get('/carteira').set('authorization', `Bearer ${tokenA}`);
     expect(carteira.body).toMatchObject({ saldoDisponivel: '100000.00', saldoReservado: '0.00' });
 
+    // RF-008: toda ordem enviada aparece no histórico com o status correto
+    const historico = await http().get('/historico').set('authorization', `Bearer ${tokenA}`);
+    expect(historico.body.ordens).toEqual([
+      expect.objectContaining({ id: criada.body.id, status: 'CANCELADA' }),
+    ]);
+
     const deNovo = await http().delete(caminho).set('authorization', `Bearer ${tokenA}`);
     expect(deNovo.status).toBe(409);
     expect(deNovo.body.erro.codigo).toBe('ORDEM_NAO_CANCELAVEL');

@@ -10,6 +10,9 @@ const envValido = {
   ORDEM_TIMEOUT_MS: '3000',
   SALDO_INICIAL: '100000.00',
   ACOES_INICIAIS: '1000',
+  AGENTES_CONSERVADORES: '3',
+  AGENTES_AGRESSIVOS: '2',
+  AGENTES_SENHA: 'senha-dos-agentes',
 };
 
 describe('validarEnv', () => {
@@ -41,6 +44,8 @@ describe('validarEnv', () => {
     ['GATEWAY_DATABASE_URL', 'mysql://x'],
     ['JWT_SECRET', 'curto'],
     ['LOG_LEVEL', 'verbose'],
+    ['AGENTES_CONSERVADORES', '-1'],
+    ['AGENTES_SENHA', '123'],
   ])('recusa %s = %j', (nome, valor) => {
     expect(() => validarEnv({ ...envValido, [nome]: valor })).toThrow(nome);
   });

@@ -1,4 +1,10 @@
-import type { EventoMercado, OrdemResumoDto } from '@bolsa/contracts';
+import type {
+  CarteiraRespostaDto,
+  EventoMercado,
+  HistoricoRespostaDto,
+  OrdemRespostaDto,
+  OrdemResumoDto,
+} from '@bolsa/contracts';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -122,5 +128,52 @@ describe('reducer do Home Broker', () => {
     expect(antes.mercado.map((a) => a.ativo)).toEqual(['ABC3']);
     expect(antes.nomes).toEqual({ ABC3: 'ABC Tecnologia' });
     expect(depois.mercado.map((a) => a.ativo)).toEqual(['PETR4']);
+  });
+
+  it('LIVRO guarda o livro de cada ativo, o mais novo por cima (RF-007)', () => {
+    const livro = fixture('evento-livro.json');
+    if (livro.tipo !== 'LIVRO') throw new Error('fixture errada');
+    let estado = reducer(estadoInicial, { tipo: 'EVENTO', evento: livro });
+    estado = reducer(estado, {
+      tipo: 'EVENTO',
+      evento: { tipo: 'LIVRO', dados: { ...livro.dados, ofertasVenda: [] } },
+    });
+
+    expect(estado.livros[livro.dados.ativo]?.ofertasVenda).toEqual([]);
+    expect(estado.livros[livro.dados.ativo]?.ofertasCompra).toEqual(livro.dados.ofertasCompra);
+  });
+
+  it('HISTORICO completa as ordens sem desfazer o que veio por evento (RF-008)', () => {
+    const historico = JSON.parse(
+      readFileSync(join(FIXTURES, 'api-historico-res.json'), 'utf-8'),
+    ) as HistoricoRespostaDto;
+    const [rejeitada, executada] = historico.ordens as [OrdemRespostaDto, OrdemRespostaDto];
+    // A executada já chegou por evento com outro status: o evento é mais novo e prevalece
+    let estado = reducer(estadoInicial, {
+      tipo: 'ORDEM_ENVIADA',
+      ordem: { ...executada, status: 'PARCIAL' },
+    });
+    estado = reducer(estado, { tipo: 'HISTORICO', historico });
+
+    expect(estado.ordens.map((o) => [o.id, o.status])).toEqual([
+      [rejeitada.id, 'REJEITADA'],
+      [executada.id, 'PARCIAL'],
+    ]);
+    expect(estado.meusNegocios).toEqual(historico.negocios);
+  });
+
+  it('CARTEIRA traz o patrimônio e o P/L calculados no Gateway (RF-005)', () => {
+    const carteira = JSON.parse(
+      readFileSync(join(FIXTURES, 'api-carteira-res.json'), 'utf-8'),
+    ) as CarteiraRespostaDto;
+
+    const estado = reducer(estadoInicial, { tipo: 'CARTEIRA', carteira });
+
+    expect(estado.patrimonio).toEqual({
+      patrimonio: carteira.patrimonio,
+      lucroPrejuizo: carteira.lucroPrejuizo,
+      posicoes: carteira.posicoes,
+    });
+    expect(estado.saldoReservado).toBe(carteira.saldoReservado);
   });
 });

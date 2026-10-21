@@ -4,12 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/main.js",
+    "start": "node src/main.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "devDependencies": {
     "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "@bolsa/contracts": "workspace:^"
+  },
+  "engines": {
+    "node": ">=24.9"
   }
 }
