@@ -27,8 +27,8 @@ describe('WebSocket /ws', () => {
   });
 
   /** Cliente que guarda as mensagens e espera pela primeira que satisfaz o filtro. */
-  function conectar(token?: string) {
-    const ws = new WebSocket(token ? `${base}?token=${token}` : base);
+  function conectar(token?: string, opcoes: { autoPong?: boolean } = {}) {
+    const ws = new WebSocket(token ? `${base}?token=${token}` : base, opcoes);
     abertos.push(ws);
     const recebidas: EventoMercado[] = [];
     const ouvintes: (() => void)[] = [];
@@ -55,7 +55,7 @@ describe('WebSocket /ws', () => {
         ouvintes.push(ouvir);
         ouvir();
       });
-    return { ws, esperar };
+    return { ws, esperar, recebidas };
   }
 
   async function investidorLogado(): Promise<string> {
@@ -65,27 +65,33 @@ describe('WebSocket /ws', () => {
     return body.token as string;
   }
 
-  const postarOrdem = (token: string, lado: 'COMPRA' | 'VENDA', preco: string) =>
+  const postarOrdem = (token: string, ativo: string, lado: 'COMPRA' | 'VENDA', preco: string) =>
     request(app.getHttpServer())
       .post('/ordens')
       .set('authorization', `Bearer ${token}`)
-      .send({ clientOrderId: randomUUID(), ativo: 'DEF4', lado, quantidade: 5, preco })
+      .send({ clientOrderId: randomUUID(), ativo, lado, quantidade: 5, preco })
       .expect(201);
 
   /**
-   * Um preço dentro do spread atual do ativo: acima da melhor compra e abaixo da melhor
-   * venda, com folga. Uma venda nele vira a melhor oferta, e uma compra nele só casa com
+   * Um ativo e um preço dentro do spread atual dele: acima da melhor compra e abaixo da
+   * melhor venda. Uma venda nesse preço vira a melhor oferta, e uma compra nele só casa com
    * ela, sejam quais forem as ordens que outros testes ou o k6 deixaram no banco.
    */
-  async function precoNoSpread(ativo: string): Promise<string> {
-    const { body } = await request(app.getHttpServer()).get(`/mercado/livro/${ativo}`);
+  async function precoNoSpread(
+    candidatos: string[] = ['DEF4', 'ABC3', 'GHI3'],
+  ): Promise<{ ativo: string; preco: string }> {
     const centavos = (preco?: string) =>
       preco === undefined ? undefined : Math.round(Number(preco) * 100);
-    const compra = centavos(body.ofertasCompra[0]?.preco) ?? 0;
-    const venda = centavos(body.ofertasVenda[0]?.preco) ?? compra + 100_000;
-    if (venda - compra < 3) throw new Error(`spread de ${ativo} fechado; use um banco limpo`);
-    const meio = Math.floor((compra + venda) / 2);
-    return `${Math.floor(meio / 100)}.${String(meio % 100).padStart(2, '0')}`;
+    for (const ativo of candidatos) {
+      const { body } = await request(app.getHttpServer()).get(`/mercado/livro/${ativo}`);
+      const compra = centavos(body.ofertasCompra[0]?.preco) ?? 1;
+      const venda = centavos(body.ofertasVenda[0]?.preco) ?? compra + 100_000;
+      // Com 1 centavo de diferença não há preço no meio; tenta o próximo ativo
+      if (venda - compra < 2) continue;
+      const meio = Math.floor((compra + venda) / 2);
+      return { ativo, preco: `${Math.floor(meio / 100)}.${String(meio % 100).padStart(2, '0')}` };
+    }
+    throw new Error('nenhum ativo com espaço no spread; use um banco limpo');
   }
 
   it.each([
@@ -125,9 +131,9 @@ describe('WebSocket /ws', () => {
     const outro = conectar(tokenOutro);
     await Promise.all([vendedor, comprador, outro].map((c) => c.esperar('SNAPSHOT')));
 
-    const preco = await precoNoSpread('DEF4');
-    const venda = await postarOrdem(tokenVendedor, 'VENDA', preco);
-    await postarOrdem(tokenComprador, 'COMPRA', preco);
+    const { ativo, preco } = await precoNoSpread();
+    const venda = await postarOrdem(tokenVendedor, ativo, 'VENDA', preco);
+    await postarOrdem(tokenComprador, ativo, 'COMPRA', preco);
 
     await expect(
       vendedor.esperar(
@@ -139,9 +145,9 @@ describe('WebSocket /ws', () => {
       comprador.esperar('ORDEM_ATUALIZADA', (e) => e.dados.status === 'EXECUTADA'),
     ).resolves.toBeDefined();
     const negocio = await outro.esperar('NEGOCIO', (e) => e.dados.preco === preco);
-    expect(negocio.dados).toMatchObject({ ativo: 'DEF4', quantidade: 5 });
+    expect(negocio.dados).toMatchObject({ ativo, quantidade: 5 });
     await expect(
-      outro.esperar('PRECO', (e) => e.dados.ativo === 'DEF4' && e.dados.precoAtual === preco),
+      outro.esperar('PRECO', (e) => e.dados.ativo === ativo && e.dados.precoAtual === preco),
     ).resolves.toBeDefined();
     // O outro investidor não vê as ordens de ninguém (RNF-08)
     await new Promise((r) => setTimeout(r, 100));
@@ -149,8 +155,8 @@ describe('WebSocket /ws', () => {
 
     // E o GET /mercado já reflete o negócio (RF-017)
     const mercado = await request(app.getHttpServer()).get('/mercado');
-    const def4 = mercado.body.ativos.find((a: { codigo: string }) => a.codigo === 'DEF4');
-    expect(def4.precoAtual).toBe(preco);
+    const negociado = mercado.body.ativos.find((a: { codigo: string }) => a.codigo === ativo);
+    expect(negociado.precoAtual).toBe(preco);
   });
 
   it('RF-007: uma ordem que não casa aparece no livro de todos, agregada por preço', async () => {
@@ -159,14 +165,14 @@ describe('WebSocket /ws', () => {
     await observador.esperar('SNAPSHOT');
     // O LIVRO de cada ativo chega logo depois do SNAPSHOT
     await observador.esperar('LIVRO', (e) => e.dados.ativo === 'GHI3');
+    const { ativo, preco } = await precoNoSpread();
 
     // Dentro do spread: não casa com nada e vira a melhor compra, então entra no top-5
-    const preco = await precoNoSpread('GHI3');
     const compra = (quantidade: number) =>
       request(app.getHttpServer())
         .post('/ordens')
         .set('authorization', `Bearer ${tokenA}`)
-        .send({ clientOrderId: randomUUID(), ativo: 'GHI3', lado: 'COMPRA', quantidade, preco })
+        .send({ clientOrderId: randomUUID(), ativo, lado: 'COMPRA', quantidade, preco })
         .expect(201);
     await compra(3);
     await compra(4);
@@ -176,11 +182,11 @@ describe('WebSocket /ws', () => {
     await expect(
       observador.esperar(
         'LIVRO',
-        (e) => e.dados.ativo === 'GHI3' && temNivel(e.dados.ofertasCompra),
+        (e) => e.dados.ativo === ativo && temNivel(e.dados.ofertasCompra),
       ),
     ).resolves.toBeDefined();
 
-    const rest = await request(app.getHttpServer()).get('/mercado/livro/GHI3');
+    const rest = await request(app.getHttpServer()).get(`/mercado/livro/${ativo}`);
     expect(rest.status).toBe(200);
     expect(rest.body.ofertasCompra.length).toBeLessThanOrEqual(5);
     // Melhor compra primeiro: preços em ordem decrescente
@@ -188,4 +194,27 @@ describe('WebSocket /ws', () => {
     expect([...precos].sort((a, b) => b - a)).toEqual(precos);
     expect((await request(app.getHttpServer()).get('/mercado/livro/XYZ9')).status).toBe(404);
   });
+
+  it('RF-023: quem para de responder ao ping cai em até 10 s e sai da presença', async () => {
+    const [tokenMudo, tokenOutro] = await Promise.all([investidorLogado(), investidorLogado()]);
+    const outro = conectar(tokenOutro);
+    await outro.esperar('SNAPSHOT');
+    // autoPong: false faz o papel da rede caída: a conexão fica aberta, mas muda
+    const mudo = conectar(tokenMudo, { autoPong: false });
+    await mudo.esperar('SNAPSHOT');
+    // Maior total visto depois que o mudo entrou: a queda tem de ficar abaixo dele
+    await new Promise((r) => setTimeout(r, 200));
+    const comMudo = Math.max(
+      ...outro.recebidas.flatMap((e) => (e.tipo === 'PRESENCA' ? [e.dados.conectados] : [])),
+    );
+    const fechou = new Promise<number>((r) => mudo.ws.on('close', () => r(Date.now())));
+    const inicio = Date.now();
+
+    const fim = await fechou;
+
+    expect(fim - inicio).toBeLessThanOrEqual(10_500);
+    await expect(
+      outro.esperar('PRESENCA', (e) => e.dados.conectados < comMudo),
+    ).resolves.toBeDefined();
+  }, 15_000);
 });
