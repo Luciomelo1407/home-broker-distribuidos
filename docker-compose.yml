@@ -58,5 +58,32 @@ services:
     # RF-024, demo CA-05: derrubado, o Docker o sobe de novo e ele reconstrói o livro
     restart: unless-stopped
 
+  gateway:
+    build:
+      context: .
+      dockerfile: apps/gateway/Dockerfile
+    environment:
+      GATEWAY_DATABASE_URL: postgres://gateway_app:${GATEWAY_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379
+      GATEWAY_PORT: 3001
+      LOG_LEVEL: ${LOG_LEVEL:?defina no .env}
+      JWT_SECRET: ${JWT_SECRET:?defina no .env}
+      JWT_EXPIRACAO: ${JWT_EXPIRACAO:?defina no .env}
+      ORDEM_TIMEOUT_MS: ${ORDEM_TIMEOUT_MS:?defina no .env}
+      SALDO_INICIAL: ${SALDO_INICIAL:?defina no .env}
+      ACOES_INICIAIS: ${ACOES_INICIAIS:?defina no .env}
+    ports:
+      # Porta de entrada da demo (system design §5.5): acessível de outras máquinas
+      - '${GATEWAY_PORT:-3001}:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # O Motor aplica as migrações; o Gateway sobe depois e não depende dele para viver
+      engine:
+        condition: service_started
+    restart: unless-stopped
+
 volumes:
   postgres-data:

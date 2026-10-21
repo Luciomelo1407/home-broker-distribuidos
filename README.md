@@ -151,6 +151,21 @@ Na primeira subida:
    reconstrói o livro a partir das ordens abertas e passa a consumir o stream `orders`. A linha
    `"Motor pronto"` no log confirma que deu certo. Os nomes no Redis e o formato das mensagens estão
    em [`docs/integracao.md`](docs/integracao.md).
+4. O **Gateway** sobe na porta `GATEWAY_PORT` (3001): REST (`/auth/*`, `/ordens`, `/mercado`,
+   `/carteira`) e WebSocket (`/ws?token=<jwt>`). Se subir antes de o Motor terminar as migrações
+   num banco novo, ele sai com erro e o Docker o sobe de novo em seguida.
+
+Para testar o fluxo inteiro com `curl`:
+
+```bash
+curl -s localhost:3001/auth/cadastro -H 'content-type: application/json' \
+  -d '{"nomeUsuario":"ana","senha":"senha-123"}'
+TOKEN=$(curl -s localhost:3001/auth/login -H 'content-type: application/json' \
+  -d '{"nomeUsuario":"ana","senha":"senha-123"}' | sed 's/.*"token":"\([^"]*\)".*/\1/')
+curl -s localhost:3001/ordens -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d "{\"clientOrderId\":\"$(uuidgen)\",\"ativo\":\"ABC3\",\"lado\":\"COMPRA\",\"quantidade\":10,\"preco\":\"25.00\"}"
+curl -s localhost:3001/carteira -H "authorization: Bearer $TOKEN"
+```
 
 Para conferir o banco:
 
