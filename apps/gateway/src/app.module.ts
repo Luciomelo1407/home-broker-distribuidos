@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { MercadoModule } from './mercado/mercado.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { OrdensModule } from './ordens/ordens.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 // Módulo raiz. Os módulos por área (auth, ordens, carteira, mercado, realtime, bus…)
 // são registrados aqui conforme forem criados (arquitetura §2).
@@ -22,6 +23,7 @@ import { OrdensModule } from './ordens/ordens.module';
     MercadoModule,
     OrdensModule,
     CarteiraModule,
+    RealtimeModule,
   ],
 })
 export class AppModule {}

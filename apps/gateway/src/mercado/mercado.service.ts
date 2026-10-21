@@ -1,5 +1,7 @@
 import type { AtivoMercadoDto, MercadoRespostaDto } from '@bolsa/contracts';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import type { Subscription } from 'rxjs';
+import { BusService } from '../bus/bus.service';
 import { DatabaseService } from '../database/database.service';
 import { listarAtivos } from './mercado.queries';
 
@@ -7,18 +9,31 @@ type AtivoDoMercado = MercadoRespostaDto['ativos'][number];
 
 /**
  * Snapshot do mercado em memória (arquitetura §2, `gateway/mercado`). Carrega os ativos
- * do Postgres ao subir e depois é atualizado pelos eventos `PRECO` do Motor, para que
+ * do Postgres ao subir e depois é atualizado pelo `mercado` de cada resultado do Motor, para que
  * `GET /mercado` e o `SNAPSHOT` do WebSocket não consultem o banco a cada pedido.
  */
 @Injectable()
-export class MercadoService implements OnModuleInit {
+export class MercadoService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MercadoService.name);
   private readonly ativos = new Map<string, AtivoDoMercado>();
+  private assinatura?: Subscription;
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    // Pick para o teste passar só o que é usado; o @Inject diz ao Nest o que injetar
+    @Inject(BusService) private readonly bus: Pick<BusService, 'resultados$'>,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     await this.recarregar();
+    // RF-017: cada resultado com negócio traz o novo preço e volume do ativo
+    this.assinatura = this.bus.resultados$.subscribe((resultado) => {
+      for (const preco of resultado.mercado) this.aplicarPreco(preco);
+    });
+  }
+
+  onModuleDestroy(): void {
+    this.assinatura?.unsubscribe();
   }
 
   /** Relê todos os ativos do banco (subida e, na F3, reconexão ao Redis). */

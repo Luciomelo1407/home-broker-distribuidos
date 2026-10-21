@@ -1,3 +1,4 @@
+import { EMPTY } from 'rxjs';
 import type { DatabaseService } from '../database/database.service';
 import { MercadoService } from './mercado.service';
 
@@ -14,7 +15,7 @@ const linhas = [
 
 async function criarServico(): Promise<MercadoService> {
   const db = { query: async () => ({ rows: linhas }) } as unknown as DatabaseService;
-  const servico = new MercadoService(db);
+  const servico = new MercadoService(db, { resultados$: EMPTY });
   await servico.onModuleInit();
   return servico;
 }

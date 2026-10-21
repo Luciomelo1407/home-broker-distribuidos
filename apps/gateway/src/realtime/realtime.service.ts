@@ -1,0 +1,196 @@
+import type { EventoMercado } from '@bolsa/contracts';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnApplicationBootstrap,
+  OnApplicationShutdown,
+} from '@nestjs/common';
+import { HttpAdapterHost } from '@nestjs/core';
+import type { Redis } from 'ioredis';
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage, Server } from 'node:http';
+import type { Subscription } from 'rxjs';
+import { WebSocket, WebSocketServer } from 'ws';
+import { AuthService } from '../auth/auth.service';
+import { BusService, REDIS_COMANDOS } from '../bus/bus.service';
+import { CarteiraService } from '../carteira/carteira.service';
+import { MercadoService } from '../mercado/mercado.service';
+import { eventosDoResultado } from './eventos';
+import { Presenca } from './presenca';
+
+export const CAMINHO_WS = '/ws';
+/** RF-023: ping a cada 5 s; quem não responde a um ping é desconectado no seguinte. */
+export const INTERVALO_PING_MS = 5_000;
+/** Código de fechamento para token ausente ou inválido (faixa 4000-4999 é da aplicação). */
+export const FECHAMENTO_NAO_AUTENTICADO = 4401;
+
+interface Conexao {
+  id: string;
+  investidorId: number;
+  respondeuPing: boolean;
+  /** Eventos que chegaram antes do SNAPSHOT; `undefined` depois que ele foi enviado. */
+  pendentes?: EventoMercado[];
+}
+
+/**
+ * WebSocket do Home Broker (RF-003, RF-004, RF-018, RF-023). O token vai na URL
+ * (`/ws?token=<jwt>`), porque o navegador não deixa pôr header no WebSocket. Ao abrir:
+ * autentica, manda o SNAPSHOT e passa a repassar os eventos derivados dos resultados
+ * do Motor.
+ *
+ * Usa o `ws` direto sobre o servidor HTTP do Nest, sem `@nestjs/websockets`, para que a
+ * autenticação aconteça na abertura e os testes não precisem configurar um adapter.
+ */
+@Injectable()
+export class RealtimeService implements OnApplicationBootstrap, OnApplicationShutdown {
+  private readonly logger = new Logger(RealtimeService.name);
+  private readonly conexoes = new Map<WebSocket, Conexao>();
+  private readonly presenca: Presenca;
+  private wss?: WebSocketServer;
+  private ping?: NodeJS.Timeout;
+  private assinatura?: Subscription;
+  private ultimoTotal = -1;
+
+  constructor(
+    private readonly http: HttpAdapterHost,
+    private readonly auth: AuthService,
+    private readonly bus: BusService,
+    private readonly carteira: CarteiraService,
+    private readonly mercado: MercadoService,
+    @Inject(REDIS_COMANDOS) redis: Redis,
+  ) {
+    this.presenca = new Presenca(redis);
+  }
+
+  onApplicationBootstrap(): void {
+    const servidor = this.http.httpAdapter.getHttpServer() as Server;
+    this.wss = new WebSocketServer({ server: servidor, path: CAMINHO_WS });
+    this.wss.on('connection', (socket, req) => {
+      this.abrir(socket, req).catch((erro: unknown) => {
+        this.logger.error({ erro: String(erro) }, 'falha ao abrir conexão WebSocket');
+        socket.close(1011, 'erro interno');
+      });
+    });
+    this.assinatura = this.bus.resultados$.subscribe((resultado) => {
+      const { porInvestidor, paraTodos } = eventosDoResultado(resultado);
+      for (const [socket, conexao] of this.conexoes) {
+        for (const evento of [...(porInvestidor.get(conexao.investidorId) ?? []), ...paraTodos]) {
+          this.enviar(socket, conexao, evento);
+        }
+      }
+    });
+    this.ping = setInterval(() => void this.verificarConexoes(), INTERVALO_PING_MS);
+  }
+
+  async onApplicationShutdown(): Promise<void> {
+    clearInterval(this.ping);
+    this.assinatura?.unsubscribe();
+    await Promise.allSettled([...this.conexoes.values()].map((c) => this.presenca.remover(c.id)));
+    for (const socket of this.conexoes.keys()) socket.terminate();
+    this.conexoes.clear();
+    await new Promise<void>((pronto) => (this.wss ? this.wss.close(() => pronto()) : pronto()));
+  }
+
+  private async abrir(socket: WebSocket, req: IncomingMessage): Promise<void> {
+    const token = new URL(req.url ?? '', 'http://ws').searchParams.get('token') ?? undefined;
+    const usuario = await this.auth.verificar(token);
+    if (!usuario) {
+      // T-12: WebSocket sem token válido é recusado
+      socket.send(
+        JSON.stringify({
+          tipo: 'ERRO',
+          dados: { codigo: 'NAO_AUTENTICADO', mensagem: 'token ausente ou inválido' },
+        } satisfies EventoMercado),
+      );
+      socket.close(FECHAMENTO_NAO_AUTENTICADO, 'NAO_AUTENTICADO');
+      return;
+    }
+
+    const conexao: Conexao = {
+      id: randomUUID(),
+      investidorId: usuario.id,
+      respondeuPing: true,
+      pendentes: [],
+    };
+    this.conexoes.set(socket, conexao);
+    socket.on('pong', () => {
+      conexao.respondeuPing = true;
+      this.presenca.renovar(conexao.id).catch((erro: unknown) => this.avisarRedis(erro));
+    });
+    socket.on('close', () => void this.fechar(socket, conexao));
+    // Mensagens do cliente são ignoradas: ordens vão pelo REST (POST /ordens)
+    socket.on('error', (erro) => this.logger.warn({ erro: erro.message }, 'erro no WebSocket'));
+
+    await this.presenca.renovar(conexao.id).catch((erro: unknown) => this.avisarRedis(erro));
+    this.logger.log({ userId: usuario.id, conexao: conexao.id }, 'cliente conectado');
+
+    // RF-004: estado completo na abertura (e em toda reconexão)
+    const [carteira, ordensAbertas] = await Promise.all([
+      this.carteira.carteira(usuario.id),
+      this.carteira.ordensAbertas(usuario.id),
+    ]);
+    const snapshot: EventoMercado = {
+      tipo: 'SNAPSHOT',
+      dados: {
+        saldo: carteira.saldoDisponivel,
+        posicoes: carteira.posicoes,
+        ordensAbertas,
+        mercado: this.mercado.resumo(),
+      },
+    };
+    const pendentes = conexao.pendentes ?? [];
+    conexao.pendentes = undefined;
+    this.enviar(socket, conexao, snapshot);
+    for (const evento of pendentes) this.enviar(socket, conexao, evento);
+    await this.difundirPresenca();
+  }
+
+  private async fechar(socket: WebSocket, conexao: Conexao): Promise<void> {
+    if (!this.conexoes.delete(socket)) return;
+    this.logger.log({ userId: conexao.investidorId, conexao: conexao.id }, 'cliente desconectado');
+    await this.presenca.remover(conexao.id).catch((erro: unknown) => this.avisarRedis(erro));
+    await this.difundirPresenca();
+  }
+
+  /** RF-023: derruba quem não respondeu ao último ping e manda o próximo. */
+  private async verificarConexoes(): Promise<void> {
+    for (const [socket, conexao] of this.conexoes) {
+      if (!conexao.respondeuPing) {
+        socket.terminate();
+        continue;
+      }
+      conexao.respondeuPing = false;
+      socket.ping();
+    }
+    // Conexões de outras réplicas também entram e saem; só difunde se o total mudou
+    await this.difundirPresenca(true);
+  }
+
+  /** RF-003: total de conectados para todos. */
+  private async difundirPresenca(soSeMudou = false): Promise<void> {
+    let conectados: number;
+    try {
+      conectados = await this.presenca.contar();
+    } catch (erro) {
+      this.avisarRedis(erro);
+      return;
+    }
+    if (soSeMudou && conectados === this.ultimoTotal) return;
+    this.ultimoTotal = conectados;
+    const evento: EventoMercado = { tipo: 'PRESENCA', dados: { conectados } };
+    for (const [socket, conexao] of this.conexoes) this.enviar(socket, conexao, evento);
+  }
+
+  private enviar(socket: WebSocket, conexao: Conexao, evento: EventoMercado): void {
+    if (conexao.pendentes && evento.tipo !== 'SNAPSHOT') {
+      conexao.pendentes.push(evento);
+      return;
+    }
+    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(evento));
+  }
+
+  private avisarRedis(erro: unknown): void {
+    this.logger.warn({ erro: String(erro) }, 'presença indisponível no Redis');
+  }
+}

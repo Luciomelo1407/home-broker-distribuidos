@@ -62,13 +62,27 @@
 - Senha com argon2id (`@node-rs/argon2`, binário pronto, sem build nativo). Login de usuário
   inexistente também roda um `verify`, para não revelar pelo tempo quem está cadastrado.
 
-## 5. Gateway: `BarramentoDeOrdens` (`ordens/barramento-de-ordens.ts`)
+## 5. WebSocket (`gateway/realtime`)
+
+- URL: `ws://<gateway>/ws?token=<jwt>`. O token vai na query porque o navegador não deixa pôr
+  header no WebSocket. Token ausente ou inválido: o servidor manda
+  `{ "tipo": "ERRO", "dados": { "codigo": "NAO_AUTENTICADO", … } }` e fecha com o código **4401**.
+- Ao abrir: `SNAPSHOT` (saldo disponível, posições, ordens abertas, mercado) e, para todos,
+  `PRESENCA`. Eventos que chegam enquanto o `SNAPSHOT` é montado ficam guardados e saem depois
+  dele, então o cliente nunca recebe um evento "mais velho" que o snapshot.
+- Depois: `ORDEM_ATUALIZADA` só para o dono da ordem; `NEGOCIO` e `PRECO` para todos.
+- O servidor manda ping a cada 5 s. Quem não responde é derrubado no ping seguinte (RF-023). O
+  `ws` do navegador responde ao ping sozinho, então o Home Broker não precisa fazer nada.
+- O cliente não envia mensagens: ordens vão pelo REST. O que o cliente mandar é ignorado.
+- `PRESENCA.conectados` conta **conexões**, não pessoas: duas abas do mesmo investidor contam 2.
+
+## 6. Gateway: `BarramentoDeOrdens` (`ordens/barramento-de-ordens.ts`)
 
 - O `ordens` não fala com o Redis. Ele chama `BarramentoDeOrdens.enviarEAguardar(comando, timeoutMs)`,
   que o `gateway/bus` implementa. Timeout → `ComandoNaoConfirmado` (504); `XADD` falhou →
   `BarramentoIndisponivel` (503).
 
-## 6. Impactos por pessoa
+## 7. Impactos por pessoa
 
 ### Dev 2 (fila e casca do Motor)
 
@@ -122,6 +136,8 @@
 - `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: o
   `carteira` já arredonda no SQL (`round(preco_medio, 2)::text`).
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
+- O WebSocket e os eventos estão descritos na §5. O reducer do `web` pode ser testado com as
+  fixtures `evento-*` de `packages/contracts`.
 - **Decisão pendente (grupo):** as posições iniciais do cadastro ficam com `preco_medio = 0`, porque
   o `gateway_app` só pode inserir `investidor_id`, `ativo_id` e `quantidade_disponivel`. A primeira
   compra puxa a média para baixo (ex.: 1.000 ações a 0 + 100 a R$ 102 = média R$ 9,27). Se o grupo
@@ -135,5 +151,7 @@
 - **Nova variável `LOG_LEVEL`** no `.env` (copie do `.env.example`). Sem ela, o Gateway não sobe.
 - **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust, a integração do
   Motor e o e2e do Gateway em todo PR.
+- **Os e2e escrevem no banco do compose** (investidores `e2e-*`/`ws-*`, ordens e um negócio de
+  DEF4 a R$ 9.000, que muda o preço atual). Antes de uma demo, rode `docker compose down -v`.
 - O **Motor agora fica de pé** no compose (`restart: unless-stopped`) e precisa de `REDIS_URL` e
   `ORDEM_TIMEOUT_MS`, que o compose já repassa.
