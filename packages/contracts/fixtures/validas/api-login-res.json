@@ -1,0 +1,7 @@
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsIm5vbWVVc3VhcmlvIjoiam9hbyJ9.abcdef",
+  "investidor": {
+    "id": 1,
+    "nomeUsuario": "investidor_joao"
+  }
+}

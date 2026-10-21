@@ -1,0 +1,9 @@
+{
+  "tipo": "PRECO",
+  "dados": {
+    "ativo": "ITUB4",
+    "precoAtual": "32.10",
+    "variacao": "-0.75",
+    "volume": 25000
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "tipo": "SNAPSHOT",
+  "dados": {
+    "saldo": "100000.005",
+    "posicoes": [],
+    "ordensAbertas": [],
+    "mercado": []
+  }
+}

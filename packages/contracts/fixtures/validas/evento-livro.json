@@ -1,0 +1,14 @@
+{
+  "tipo": "LIVRO",
+  "dados": {
+    "ativo": "PETR4",
+    "ofertasCompra": [
+      { "preco": "35.40", "quantidade": 500 },
+      { "preco": "35.30", "quantidade": 800 }
+    ],
+    "ofertasVenda": [
+      { "preco": "35.60", "quantidade": 300 },
+      { "preco": "35.70", "quantidade": 600 }
+    ]
+  }
+}

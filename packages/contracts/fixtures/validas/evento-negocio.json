@@ -1,0 +1,10 @@
+{
+  "tipo": "NEGOCIO",
+  "dados": {
+    "id": 105,
+    "ativo": "PETR4",
+    "preco": "35.50",
+    "quantidade": 100,
+    "momento": "2026-10-17T19:30:00.000Z"
+  }
+}

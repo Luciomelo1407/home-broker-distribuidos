@@ -1,0 +1,7 @@
+{
+  "tipo": "ERRO",
+  "dados": {
+    "codigo": "TOKEN_EXPIRADO",
+    "mensagem": "Token de autenticação expirou. Reconecte-se."
+  }
+}

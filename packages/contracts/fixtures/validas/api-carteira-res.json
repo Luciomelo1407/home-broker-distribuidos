@@ -1,0 +1,18 @@
+{
+  "saldoDisponivel": "96450.00",
+  "saldoReservado": "3550.00",
+  "posicoes": [
+    {
+      "ativo": "PETR4",
+      "quantidadeDisponivel": 1000,
+      "quantidadeReservada": 0,
+      "precoMedio": "35.50"
+    },
+    {
+      "ativo": "VALE3",
+      "quantidadeDisponivel": 1000,
+      "quantidadeReservada": 200,
+      "precoMedio": "62.00"
+    }
+  ]
+}

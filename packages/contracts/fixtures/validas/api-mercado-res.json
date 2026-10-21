@@ -1,0 +1,20 @@
+{
+  "ativos": [
+    {
+      "codigo": "PETR4",
+      "nomeEmpresa": "Petrobras",
+      "precoAtual": "35.50",
+      "precoReferencia": "35.00",
+      "variacao": "1.42",
+      "volume": 50000
+    },
+    {
+      "codigo": "VALE3",
+      "nomeEmpresa": "Vale",
+      "precoAtual": "62.00",
+      "precoReferencia": "63.00",
+      "variacao": "-1.58",
+      "volume": 32000
+    }
+  ]
+}
