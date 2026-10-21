@@ -55,7 +55,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    # RF-024, demo CA-05: derrubado, o Docker o sobe de novo e ele reconstrói o livro
+    # RF-024, demo CA-05: se o processo morrer, o Docker o sobe de novo e ele reconstrói o
+    # livro. Com init, o Motor não é o PID 1, então um kill -9 dentro do contêiner é um crash
+    # de verdade (docs/demo-falha.md). Um "docker kill" conta como parada manual e não volta.
+    init: true
     restart: unless-stopped
 
   gateway:

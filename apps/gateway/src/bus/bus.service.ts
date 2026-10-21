@@ -11,6 +11,8 @@ import {
 /** Nomes no Redis (docs/integracao.md §1). O Motor usa os mesmos. */
 export const STREAM_ORDENS = 'orders';
 export const CANAL_RESULTADO = 'ordens.resultado';
+/** O Motor renova esta chave a cada 1 s, com validade de 5 s (RF-024). */
+export const CHAVE_BATIMENTO = 'motor:heartbeat';
 
 /** Conexão para comandos (XADD, presença). Falha rápido se o Redis estiver fora. */
 export const REDIS_COMANDOS = Symbol('REDIS_COMANDOS');

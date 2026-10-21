@@ -30,9 +30,7 @@ export class LivroService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    for (const { codigo } of await listarAtivos(this.db)) {
-      this.livros.set(codigo, await buscarLivro(this.db, codigo));
-    }
+    await this.recarregar();
     this.assinatura = this.bus.resultados$.subscribe((resultado) => {
       for (const ordem of resultado.ordensAtualizadas) this.agendar(ordem.ativo);
     });
@@ -43,6 +41,13 @@ export class LivroService implements OnModuleInit, OnModuleDestroy {
     for (const timer of this.pendentes.values()) clearTimeout(timer);
     this.pendentes.clear();
     this.mudancas.complete();
+  }
+
+  /** Relê o livro de todos os ativos (subida e volta do Motor depois de uma queda). */
+  async recarregar(): Promise<void> {
+    for (const { codigo } of await listarAtivos(this.db)) {
+      this.livros.set(codigo, await buscarLivro(this.db, codigo));
+    }
   }
 
   /** RF-007: o livro atual de um ativo, ou `undefined` se o ativo não existe. */

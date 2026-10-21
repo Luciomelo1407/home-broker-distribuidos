@@ -76,12 +76,19 @@ async fn rodar() -> anyhow::Result<()> {
         tratar(&mut processador, &mut publicador, &mut consumidor, entrada).await?;
     }
 
+    // SIGINT (Ctrl+C) ou SIGTERM (docker compose stop): termina o comando atual e sai
+    let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        .context("falha ao instalar o tratamento de SIGTERM")?;
     let parar = tokio::signal::ctrl_c();
     tokio::pin!(parar);
     loop {
         tokio::select! {
             _ = &mut parar => {
                 info!("sinal de parada recebido");
+                break;
+            }
+            _ = sigterm.recv() => {
+                info!("SIGTERM recebido");
                 break;
             }
             lidas = consumidor.proximas(ESPERA_STREAM_MS) => {

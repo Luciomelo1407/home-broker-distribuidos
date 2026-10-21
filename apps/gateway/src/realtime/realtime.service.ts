@@ -13,7 +13,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Subscription } from 'rxjs';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AuthService } from '../auth/auth.service';
-import { BusService, REDIS_COMANDOS } from '../bus/bus.service';
+import { BusService, CHAVE_BATIMENTO, REDIS_COMANDOS } from '../bus/bus.service';
 import { CarteiraService } from '../carteira/carteira.service';
 import { LivroService } from '../mercado/livro.service';
 import { MetricasService } from '../observability/metricas.service';
@@ -24,8 +24,18 @@ import { Presenca } from './presenca';
 export const CAMINHO_WS = '/ws';
 /** RF-023: ping a cada 5 s; quem não responde a um ping é desconectado no seguinte. */
 export const INTERVALO_PING_MS = 5_000;
+/** Com que frequência o Gateway confere se o Motor está vivo (CA-05). */
+export const INTERVALO_BATIMENTO_MS = 1_000;
 /** Código de fechamento para token ausente ou inválido (faixa 4000-4999 é da aplicação). */
 export const FECHAMENTO_NAO_AUTENTICADO = 4401;
+
+const MOTOR_FORA: EventoMercado = {
+  tipo: 'ERRO',
+  dados: {
+    codigo: 'MERCADO_INDISPONIVEL',
+    mensagem: 'mercado temporariamente indisponível; suas ordens abertas estão preservadas',
+  },
+};
 
 interface Conexao {
   id: string;
@@ -51,6 +61,10 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
   private readonly presenca: Presenca;
   private wss?: WebSocketServer;
   private ping?: NodeJS.Timeout;
+  private batimento?: NodeJS.Timeout;
+  /** Último estado visto do Motor; `undefined` antes da primeira conferência. */
+  private motorNoAr?: boolean;
+  private readonly redis: Redis;
   private readonly assinaturas: Subscription[] = [];
   private ultimoTotal = -1;
 
@@ -65,6 +79,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
     @Inject(REDIS_COMANDOS) redis: Redis,
   ) {
     this.presenca = new Presenca(redis);
+    this.redis = redis;
   }
 
   onApplicationBootstrap(): void {
@@ -93,10 +108,12 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
       }),
     );
     this.ping = setInterval(() => void this.verificarConexoes(), INTERVALO_PING_MS);
+    this.batimento = setInterval(() => void this.verificarMotor(), INTERVALO_BATIMENTO_MS);
   }
 
   async onApplicationShutdown(): Promise<void> {
     clearInterval(this.ping);
+    clearInterval(this.batimento);
     for (const assinatura of this.assinaturas) assinatura.unsubscribe();
     await Promise.allSettled([...this.conexoes.values()].map((c) => this.presenca.remover(c.id)));
     for (const socket of this.conexoes.keys()) socket.terminate();
@@ -139,11 +156,24 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
     this.logger.log({ userId: usuario.id, conexao: conexao.id }, 'cliente conectado');
 
     // RF-004: estado completo na abertura (e em toda reconexão)
+    const snapshot = await this.montarSnapshot(usuario.id);
+    const pendentes = conexao.pendentes ?? [];
+    conexao.pendentes = undefined;
+    this.enviar(socket, conexao, snapshot);
+    // O SNAPSHOT não tem livro (schema): vai um LIVRO por ativo logo em seguida
+    for (const dados of this.livros.todos()) this.enviar(socket, conexao, { tipo: 'LIVRO', dados });
+    for (const evento of pendentes) this.enviar(socket, conexao, evento);
+    if (this.motorNoAr === false) this.enviar(socket, conexao, MOTOR_FORA);
+    await this.difundirPresenca();
+  }
+
+  /** Saldo, posições, ordens abertas e mercado do investidor (RF-004). */
+  private async montarSnapshot(investidorId: number): Promise<EventoMercado> {
     const [carteira, ordensAbertas] = await Promise.all([
-      this.carteira.carteira(usuario.id),
-      this.carteira.ordensAbertas(usuario.id),
+      this.carteira.carteira(investidorId),
+      this.carteira.ordensAbertas(investidorId),
     ]);
-    const snapshot: EventoMercado = {
+    return {
       tipo: 'SNAPSHOT',
       dados: {
         saldo: carteira.saldoDisponivel,
@@ -160,13 +190,42 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
         mercado: this.mercado.resumo(),
       },
     };
-    const pendentes = conexao.pendentes ?? [];
-    conexao.pendentes = undefined;
-    this.enviar(socket, conexao, snapshot);
-    // O SNAPSHOT não tem livro (schema): vai um LIVRO por ativo logo em seguida
-    for (const dados of this.livros.todos()) this.enviar(socket, conexao, { tipo: 'LIVRO', dados });
-    for (const evento of pendentes) this.enviar(socket, conexao, evento);
-    await this.difundirPresenca();
+  }
+
+  /**
+   * CA-05 (system design §5.3): o Gateway e os WebSockets continuam de pé quando o Motor
+   * cai, e os clientes são avisados. Sem batimento (`motor:heartbeat` expira em 5 s), todos
+   * recebem `ERRO MERCADO_INDISPONIVEL`. Quando ele volta, mercado e livro são relidos do
+   * banco e cada conexão recebe um SNAPSHOT novo, que tira o aviso da tela (RF-004).
+   */
+  private async verificarMotor(): Promise<void> {
+    let noAr: boolean;
+    try {
+      noAr = (await this.redis.exists(CHAVE_BATIMENTO)) === 1;
+    } catch {
+      // Sem Redis também não há mercado: as ordens não chegam ao Motor
+      noAr = false;
+    }
+    const antes = this.motorNoAr;
+    this.motorNoAr = noAr;
+    if (antes === undefined || antes === noAr) return;
+
+    if (!noAr) {
+      this.logger.warn(
+        { conexoes: this.conexoes.size },
+        'Motor sem batimento: mercado indisponível',
+      );
+      for (const [socket, conexao] of this.conexoes) this.enviar(socket, conexao, MOTOR_FORA);
+      return;
+    }
+    this.logger.log({ conexoes: this.conexoes.size }, 'Motor de volta: reenviando SNAPSHOT');
+    await Promise.all([this.mercado.recarregar(), this.livros.recarregar()]);
+    for (const [socket, conexao] of this.conexoes) {
+      const snapshot = await this.montarSnapshot(conexao.investidorId);
+      this.enviar(socket, conexao, snapshot);
+      for (const dados of this.livros.todos())
+        this.enviar(socket, conexao, { tipo: 'LIVRO', dados });
+    }
   }
 
   private async fechar(socket: WebSocket, conexao: Conexao): Promise<void> {

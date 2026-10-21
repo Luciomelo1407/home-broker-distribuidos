@@ -74,6 +74,11 @@
 - O servidor manda ping a cada 5 s. Quem não responde é derrubado no ping seguinte (RF-023). O
   `ws` do navegador responde ao ping sozinho, então o Home Broker não precisa fazer nada.
 - O cliente não envia mensagens: ordens vão pelo REST. O que o cliente mandar é ignorado.
+- **Motor fora (CA-05):** o Gateway confere o `motor:heartbeat` a cada 1 s. Sem batimento, manda
+  `{ "tipo": "ERRO", "dados": { "codigo": "MERCADO_INDISPONIVEL", … } }` a todos (e a quem conectar
+  enquanto ele estiver fora); quando o batimento volta, relê mercado e livro e manda um `SNAPSHOT`
+  novo a cada conexão. Para o Home Broker, basta mostrar o `ERRO` e limpá-lo no `SNAPSHOT` (o
+  reducer já faz isso). Roteiro completo em [`docs/demo-falha.md`](demo-falha.md).
 - `PRESENCA.conectados` conta **conexões**, não pessoas: duas abas do mesmo investidor contam 2.
 - **Livro (RF-007):** logo depois do `SNAPSHOT` vai um `LIVRO` por ativo, e depois um `LIVRO` para
   todos sempre que uma ordem do ativo muda. São até 5 níveis por lado, agregados por preço, com a
@@ -122,7 +127,10 @@
     sob demanda para investidores novos, e gravação de cada `Resultado` numa transação;
   - `processor.rs`: idempotência, descarte por idade, `Estado::criar`/`cancelar`, troca do estado só
     depois do COMMIT, logs com todos os stages do RF-025;
-  - `main.rs`: processa, publica e só então dá `XACK`. Qualquer erro de banco ou Redis encerra o
+  - `main.rs`: processa, publica e só então dá `XACK`. Trata SIGINT e SIGTERM terminando o comando
+    atual (o `docker compose stop` leva ~0,6 s). No compose, `init: true` faz do Motor um processo
+    filho, para um `kill -9` dentro do contêiner ser um crash que o Docker reinicia; um
+    `docker kill` conta como parada manual e **não** reinicia. Qualquer erro de banco ou Redis encerra o
     processo (fail-fast), e o compose o sobe de novo (`restart: unless-stopped`).
 - O id da ordem vem de `nextval` **antes** do domínio, porque o domínio precisa dele para o desempate
   (RF-014). Ordens rejeitadas também são gravadas (`REJEITADA` + motivo), inclusive as vencidas
