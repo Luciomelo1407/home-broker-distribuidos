@@ -158,8 +158,8 @@
 - **Carteira P2 e histórico também foram escritos pelo Dev 1** (PR `feat/gateway-carteira-p2`):
   - `GET /carteira` ganhou `patrimonio` e `lucroPrejuizo` e, em cada posição, `precoAtual`,
     `valorAtual` e `lucroPrejuizo`. Tudo é calculado no SQL; o P/L é
-    `(preço atual − preço médio) × (disponível + reservada)`. Como o preço médio inicial é 0
-    (decisão pendente abaixo), o P/L de quem acabou de se cadastrar já é o valor das ações.
+    `(preço atual − preço médio) × (disponível + reservada)`, então começa em 0 no cadastro
+    (ver o preço médio inicial logo abaixo).
   - `GET /historico` (RF-008): as 100 ordens mais recentes, em qualquer status, e os 100
     negócios mais recentes em que o investidor foi comprador ou vendedor, com o `lado` e o
     `ordemId` dele (`HistoricoResposta` no `api-rest`).
@@ -190,11 +190,15 @@
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
 - O WebSocket e os eventos estão descritos na §5. O reducer do `web` pode ser testado com as
   fixtures `evento-*` de `packages/contracts`.
-- **Decisão pendente (grupo):** as posições iniciais do cadastro ficam com `preco_medio = 0`, porque
-  o `gateway_app` só pode inserir `investidor_id`, `ativo_id` e `quantidade_disponivel`. A primeira
-  compra puxa a média para baixo (ex.: 1.000 ações a 0 + 100 a R$ 102 = média R$ 9,27). Se o grupo
-  quiser a média inicial igual ao `preco_inicial` do ativo, é preciso uma migração nova que libere
-  essa coluna no `GRANT` (ou um `DEFAULT` calculado).
+- **Preço médio inicial (decidido pelo Dev 1, que é dono do `db`; revisável):** as ações do
+  cadastro entram com `preco_medio` igual ao `preco_inicial` do ativo, pela migração
+  `0004_preco_medio_inicial.sql`. Antes elas entravam com 0, e o P/L de quem acabava de se
+  cadastrar mostrava R$ 136 mil de "lucro". O `gateway_app` não pode escrever essa coluna, então
+  quem põe o valor é um trigger, e **só nas inserções do `gateway_app`**: as do Motor nunca são
+  alteradas, para o banco não ficar diferente da memória dele. A migração também corrige as
+  posições iniciais que já existiam. Posições que o Motor já tinha recalculado a partir do 0
+  continuam como estavam; num banco novo isso não acontece. Para voltar atrás, uma migração nova
+  com `DROP TRIGGER tg_posicoes_preco_medio_inicial` basta.
 
 ### Todos
 

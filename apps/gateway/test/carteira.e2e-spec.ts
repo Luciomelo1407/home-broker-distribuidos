@@ -16,7 +16,7 @@ describe('GET /carteira', () => {
 
   afterAll(() => app.close());
 
-  it('mostra o saldo e as ações iniciais de quem está logado (RF-005, S-01)', async () => {
+  it('mostra saldo, ações iniciais, patrimônio e P/L de quem está logado (RF-005, S-01)', async () => {
     const credenciais = { nomeUsuario: `e2e-${randomUUID().slice(0, 8)}`, senha: 'senha-123' };
     await request(app.getHttpServer()).post('/auth/cadastro').send(credenciais).expect(201);
     const { body } = await request(app.getHttpServer()).post('/auth/login').send(credenciais);
@@ -32,6 +32,8 @@ describe('GET /carteira', () => {
       Number(mercado.body.ativos.find((a: { codigo: string }) => a.codigo === codigo).precoAtual);
     const centavos = (valor: number) => Math.round(valor * 100);
     const ativos = ['ABC3', 'DEF4', 'GHI3'];
+    // 0004_preco_medio_inicial: as ações do cadastro entram com o preço inicial do ativo
+    const inicial: Record<string, string> = { ABC3: '25.00', DEF4: '100.00', GHI3: '10.00' };
     expect(res.body).toEqual({
       saldoDisponivel: '100000.00',
       saldoReservado: '0.00',
@@ -41,7 +43,7 @@ describe('GET /carteira', () => {
         ativo,
         quantidadeDisponivel: 1000,
         quantidadeReservada: 0,
-        precoMedio: '0.00',
+        precoMedio: inicial[ativo],
         precoAtual: expect.any(String),
         valorAtual: expect.any(String),
         lucroPrejuizo: expect.any(String),
@@ -49,8 +51,9 @@ describe('GET /carteira', () => {
     });
     // RF-005: patrimônio = saldo + ações a preço atual; P/L = (atual − médio) × quantidade
     const valorDasAcoes = ativos.reduce((total, a) => total + centavos(preco(a) * 1000), 0);
+    const custo = ativos.reduce((total, a) => total + centavos(Number(inicial[a]) * 1000), 0);
     expect(centavos(Number(res.body.patrimonio))).toBe(10_000_000 + valorDasAcoes);
-    expect(centavos(Number(res.body.lucroPrejuizo))).toBe(valorDasAcoes);
+    expect(centavos(Number(res.body.lucroPrejuizo))).toBe(valorDasAcoes - custo);
   });
 
   it('mostra o histórico de ordens e negócios do investidor (RF-008)', async () => {

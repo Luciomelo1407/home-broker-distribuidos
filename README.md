@@ -42,6 +42,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 19  | `test/realtime-rf023`              | e2e do RF-023 e e2e do WebSocket independentes do livro      | Dev 2             |
 | 20  | `feat/gateway-carteira-p2`         | patrimônio e P/L (RF-005 P2) e `GET /historico` (RF-008)     | **Dev 4**         |
 | 21  | `feat/web-p2`                      | Home Broker P2: livro, cancelar, histórico, patrimônio e P/L | **Dev 4**         |
+| 22  | `feat/db-preco-medio-inicial`      | migração 0004: preço médio inicial = preço do ativo          | todos             |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -64,7 +65,6 @@ decidido em nome de cada um.
 | Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05      |
 | Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                          |
 | Dev 4 | seed dos agentes (AP-05) e revisar a P2 do `web`                                                 |
-| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)           |
 
 ## Pré-requisitos
 
@@ -191,7 +191,7 @@ Detalhes e regras em [`docs/software_architecture_and_patterns.md`](docs/softwar
 ## Banco de dados
 
 - **Fonte do schema:** [`docs/simulador-bolsa.dbml`](docs/simulador-bolsa.dbml) → `db/migrations/0001_schema.sql`.
-  Mudou o DBML? Crie uma **nova** migração (`0004_...sql`). Nunca edite uma migração já integrada na `main`:
+  Mudou o DBML? Crie uma **nova** migração (`0005_...sql`). Nunca edite uma migração já integrada na `main`:
   o `sqlx` guarda o checksum e o Motor recusa subir se ele mudar.
 - **Quem aplica:** o Motor, ao subir (`sqlx::migrate!`). O Gateway não tem migrações.
 - **Papéis** (`0003_grants.sql`):
@@ -201,6 +201,8 @@ Detalhes e regras em [`docs/software_architecture_and_patterns.md`](docs/softwar
 | `engine_app`  | Tudo (dono das tabelas). É o único escritor de dinheiro, ações, ordens e negócios.                                 |
 | `gateway_app` | `SELECT` em tudo; `INSERT` só nas colunas de cadastro de `investidores` e `posicoes`. Nenhum `UPDATE` ou `DELETE`. |
 
+- **Trigger** (`0004_preco_medio_inicial.sql`): as ações do cadastro entram com o preço inicial do
+  ativo como preço médio, para o P/L começar em 0. Só age nas inserções do `gateway_app`.
 - **CHECKs:** todos os da seção "Regras de integridade no banco" de
   [`docs/simulador-bolsa-modelo-explicado.md`](docs/simulador-bolsa-modelo-explicado.md), mais
   `preco_referencia > 0` (divisor da variação % do RF-006).
