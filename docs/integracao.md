@@ -53,10 +53,14 @@
 
 ## 4. Autenticação (`common/usuario-atual.ts`)
 
-- O guard do `auth` coloca `req.usuario = { id }` na requisição. O decorator `@UsuarioAtual()`
-  lê esse campo e responde **401 `NAO_AUTENTICADO`** se ele não existir, então uma rota com
-  `@UsuarioAtual()` nunca roda sem investidor.
-- O formato do JWT continua sendo do Dev 4. Só se exige que o guard preencha `req.usuario.id`.
+- O `JwtGuard` (global, `auth/jwt.guard.ts`) lê `Authorization: Bearer <jwt>` e, se o token for
+  válido, coloca `req.usuario = { id }` na requisição. Ele **não recusa nada sozinho**: quem exige
+  login é o decorator `@UsuarioAtual()`, que responde **401 `NAO_AUTENTICADO`** sem `req.usuario`.
+  Rota nova que precisa de login: basta usar `@UsuarioAtual()`. Rota pública: não usar.
+- JWT HS256 com `{ sub: <id do investidor> }`, assinado com `JWT_SECRET` e validade `JWT_EXPIRACAO`.
+- `AuthService.verificar(token)` devolve o investidor ou `undefined`; o WebSocket usa o mesmo método.
+- Senha com argon2id (`@node-rs/argon2`, binário pronto, sem build nativo). Login de usuário
+  inexistente também roda um `verify`, para não revelar pelo tempo quem está cadastrado.
 
 ## 5. Gateway: `BarramentoDeOrdens` (`ordens/barramento-de-ordens.ts`)
 
@@ -106,7 +110,12 @@
 
 ### Dev 4 (auth + Home Broker)
 
-- O guard precisa preencher `req.usuario = { id }` (§4). O decorator já existe; não recrie.
+- **O `gateway/auth` foi escrito pelo Dev 1** (PR `feat/gateway-auth`), porque o fluxo da Parte 1
+  não fechava sem login: cadastro (investidor + posições numa transação), login, argon2id, JWT e o
+  guard (§4). Revise o PR; daqui em diante o módulo é seu. **Falta o seed dos agentes**
+  (`database/seed`, AP-05), que depende do número e das senhas dos agentes.
+- `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o
+  tamanho; se quiser a mesma regra no contrato, acrescente o `pattern` lá.
 - `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: arredonde
   no SQL do `carteira` (`round(preco_medio, 2)::text`).
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
