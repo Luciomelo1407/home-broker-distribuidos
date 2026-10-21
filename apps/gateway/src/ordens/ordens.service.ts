@@ -53,7 +53,7 @@ export class OrdensService implements OnModuleInit {
 
     try {
       // RNF-08: o investidor vem do JWT, nunca do corpo
-      const ordem = await this.barramento.enviarEAguardar(
+      const resultado = await this.barramento.enviarEAguardar(
         {
           tipo: 'CRIAR',
           clientOrderId: dto.clientOrderId,
@@ -65,6 +65,14 @@ export class OrdensService implements OnModuleInit {
         },
         this.config.get('ORDEM_TIMEOUT_MS', { infer: true }),
       );
+      const ordem = resultado.ordem;
+      if (!ordem) {
+        // Só acontece se o ativo sumir entre a checagem acima e o Motor
+        this.logger.error({ ...log, motivo: resultado.motivoRejeicao }, 'Motor recusou sem ordem');
+        throw new AppError(CodigoErro.VALIDACAO, HttpStatus.BAD_REQUEST, 'ativo inexistente', [
+          'ativo',
+        ]);
+      }
       this.logger.log(
         { ...log, orderId: ordem.id, status: ordem.status, durMs: Date.now() - inicio },
         'ordem confirmada pelo Motor',

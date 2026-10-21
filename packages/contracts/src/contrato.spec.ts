@@ -34,8 +34,17 @@ describe('Contratos T-14 (lado TS com Ajv)', () => {
     definitions: Record<string, object>;
   };
 
+  const schemaComandoOrdem = carregarJson(join(SCHEMAS_DIR, 'comando-ordem.json')) as {
+    $id: string;
+  };
+  const schemaResultadoOrdem = carregarJson(join(SCHEMAS_DIR, 'resultado-ordem.json')) as {
+    $id: string;
+  };
+
   ajv.addSchema(schemaEventoMercado);
   ajv.addSchema(schemaApiRest);
+  ajv.addSchema(schemaComandoOrdem);
+  ajv.addSchema(schemaResultadoOrdem);
 
   const validarEvento = ajv.getSchema(schemaEventoMercado.$id);
   if (!validarEvento) {
@@ -69,6 +78,16 @@ describe('Contratos T-14 (lado TS com Ajv)', () => {
   function obterValidador(nomeArquivo: string): ValidateFunction {
     if (nomeArquivo.startsWith('evento-')) {
       return validarEvento as ValidateFunction;
+    }
+    // Mensagens do Redis (Gateway ⇄ Motor): o lado Rust lê as mesmas fixtures
+    const schemaRedis = nomeArquivo.startsWith('comando-')
+      ? schemaComandoOrdem
+      : nomeArquivo.startsWith('resultado-')
+        ? schemaResultadoOrdem
+        : undefined;
+    const validadorRedis = schemaRedis && ajv.getSchema(schemaRedis.$id);
+    if (validadorRedis) {
+      return validadorRedis;
     }
     const nomeDefinicao = MAPEAMENTO_FIXTURES_API[nomeArquivo];
     if (nomeDefinicao && validadoresApi[nomeDefinicao]) {

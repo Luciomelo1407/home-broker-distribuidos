@@ -1,4 +1,4 @@
-import type { OrdemRespostaDto } from '@bolsa/contracts';
+import type { OrdemRespostaDto, ResultadoOrdem } from '@bolsa/contracts';
 import { CanActivate, ExecutionContext, Global, INestApplication, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -27,7 +27,7 @@ class GuardDeTeste implements CanActivate {
   }
 }
 
-const enviarEAguardar = jest.fn<Promise<OrdemRespostaDto>, [ComandoCriarOrdem, number]>();
+const enviarEAguardar = jest.fn<Promise<ResultadoOrdem>, [ComandoCriarOrdem, number]>();
 
 @Global()
 @Module({
@@ -51,6 +51,17 @@ const ordemValida = {
   quantidade: 100,
   preco: '25.50',
 };
+
+function resultado(ordem: OrdemRespostaDto): ResultadoOrdem {
+  return {
+    clientOrderId: ordem.clientOrderId,
+    investidorId: ordem.investidorId,
+    ordem,
+    ordensAtualizadas: [ordem],
+    negocios: [],
+    mercado: [],
+  };
+}
 
 function respostaDoMotor(comando: ComandoCriarOrdem): OrdemRespostaDto {
   return {
@@ -81,7 +92,7 @@ describe('POST /ordens', () => {
 
   beforeEach(() => {
     enviarEAguardar.mockReset();
-    enviarEAguardar.mockImplementation(async (comando) => respostaDoMotor(comando));
+    enviarEAguardar.mockImplementation(async (comando) => resultado(respostaDoMotor(comando)));
   });
 
   const postar = (corpo: object, usuario: string | null = '7') => {
@@ -102,11 +113,13 @@ describe('POST /ordens', () => {
   });
 
   it('devolve 201 também quando o Motor rejeita a ordem', async () => {
-    enviarEAguardar.mockImplementation(async (comando) => ({
-      ...respostaDoMotor(comando),
-      status: 'REJEITADA',
-      motivoRejeicao: 'SALDO_INSUFICIENTE',
-    }));
+    enviarEAguardar.mockImplementation(async (comando) =>
+      resultado({
+        ...respostaDoMotor(comando),
+        status: 'REJEITADA',
+        motivoRejeicao: 'SALDO_INSUFICIENTE',
+      }),
+    );
 
     const res = await postar(ordemValida);
 

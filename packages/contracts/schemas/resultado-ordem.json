@@ -1,0 +1,113 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bolsa.distribuidos.ufs.br/schemas/resultado-ordem.json",
+  "title": "ResultadoOrdem",
+  "description": "O que o Motor publica no canal Pub/Sub \"ordens.resultado\" depois do COMMIT de cada comando (um por comando). O Gateway correlaciona por (investidorId, clientOrderId) e deriva dele os eventos ORDEM_ATUALIZADA, NEGOCIO e PRECO do WebSocket.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "clientOrderId",
+    "investidorId",
+    "ordem",
+    "ordensAtualizadas",
+    "negocios",
+    "mercado"
+  ],
+  "properties": {
+    "clientOrderId": { "$ref": "#/definitions/UuidString" },
+    "investidorId": { "type": "integer", "minimum": 1 },
+    "ordem": {
+      "description": "A ordem criada (aceita ou REJEITADA) ou a ordem cancelada. null só quando o comando foi recusado sem ordem para mostrar: aí motivoRejeicao é obrigatório.",
+      "oneOf": [{ "$ref": "#/definitions/Ordem" }, { "type": "null" }]
+    },
+    "motivoRejeicao": { "$ref": "#/definitions/MotivoRejeicao" },
+    "ordensAtualizadas": {
+      "description": "Todas as ordens que mudaram neste comando, inclusive as do outro lado de cada negócio. Cada uma vira um ORDEM_ATUALIZADA para o seu dono.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/Ordem" }
+    },
+    "negocios": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/Negocio" }
+    },
+    "mercado": {
+      "description": "Ativos cujo preço ou volume mudou (RF-017). Cada um vira um PRECO para todos.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/Mercado" }
+    }
+  },
+  "if": { "properties": { "ordem": { "type": "null" } } },
+  "then": { "required": ["motivoRejeicao"] },
+  "definitions": {
+    "PrecoString": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]{1,2})?$" },
+    "PercentualString": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]{1,2})?$" },
+    "UuidString": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "MotivoRejeicao": {
+      "enum": [
+        "SALDO_INSUFICIENTE",
+        "ACOES_INSUFICIENTES",
+        "ATIVO_INEXISTENTE",
+        "ORDEM_NAO_ENCONTRADA",
+        "ORDEM_DE_OUTRO_INVESTIDOR",
+        "ORDEM_NAO_CANCELAVEL",
+        "COMANDO_EXPIRADO"
+      ]
+    },
+    "Ordem": {
+      "description": "Igual a OrdemResposta do api-rest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "clientOrderId",
+        "investidorId",
+        "ativo",
+        "lado",
+        "precoLimite",
+        "quantidade",
+        "quantidadeExecutada",
+        "status"
+      ],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "clientOrderId": { "$ref": "#/definitions/UuidString" },
+        "investidorId": { "type": "integer", "minimum": 1 },
+        "ativo": { "type": "string" },
+        "lado": { "enum": ["COMPRA", "VENDA"] },
+        "precoLimite": { "$ref": "#/definitions/PrecoString" },
+        "quantidade": { "type": "integer", "minimum": 1 },
+        "quantidadeExecutada": { "type": "integer", "minimum": 0 },
+        "status": { "enum": ["ABERTA", "PARCIAL", "EXECUTADA", "CANCELADA", "REJEITADA"] },
+        "motivoRejeicao": { "$ref": "#/definitions/MotivoRejeicao" }
+      }
+    },
+    "Negocio": {
+      "description": "Igual a dados do evento NEGOCIO.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ativo", "preco", "quantidade", "momento"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "ativo": { "type": "string" },
+        "preco": { "$ref": "#/definitions/PrecoString" },
+        "quantidade": { "type": "integer", "minimum": 1 },
+        "momento": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Mercado": {
+      "description": "Igual a dados do evento PRECO.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ativo", "precoAtual", "variacao", "volume"],
+      "properties": {
+        "ativo": { "type": "string" },
+        "precoAtual": { "$ref": "#/definitions/PrecoString" },
+        "variacao": { "$ref": "#/definitions/PercentualString" },
+        "volume": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
