@@ -38,6 +38,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 15  | `feat/load-tests-k6`               | k6 de ordens e SQL de conservação, 1ª medição (M5)          | Dev 3             |
 | 16  | `feat/gateway-livro`               | livro top-5 (RF-007): `GET /mercado/livro/:ativo` e `LIVRO` | Dev 4             |
 | 17  | `feat/gateway-metricas`            | métricas do Gateway (RF-026), `/metrics` e Prometheus       | Dev 2             |
+| 18  | `feat/load-tests-tempo-real`       | medição do RNF-02 (negócio até o WebSocket)                 | Dev 3             |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -56,7 +57,7 @@ decidido em nome de cada um.
 
 | Dono  | Pendência                                                                                                        |
 | ----- | ---------------------------------------------------------------------------------------------------------------- |
-| Dev 1 | k6 na máquina da demo, medir o RNF-02 (negócio até o WebSocket), ensaio de RF-004/RF-023 com o Home Broker       |
+| Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker                 |
 | Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05                      |
 | Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                                          |
 | Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) e botão de cancelar no `web` |

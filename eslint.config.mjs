@@ -38,4 +38,17 @@ export default tseslint.config(
     files: ['load-tests/**/*.js'],
     languageOptions: { globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly' } },
   },
+  {
+    // Scripts de medição que rodam no Node
+    files: ['load-tests/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        URL: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+  },
 );

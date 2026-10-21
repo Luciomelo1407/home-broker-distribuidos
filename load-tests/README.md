@@ -9,10 +9,11 @@ docker run --rm --network host -v "$PWD/load-tests:/scripts" grafana/k6 \
 docker compose exec -T postgres psql -U postgres -d bolsa < load-tests/conferencia.sql
 ```
 
-| Arquivo           | O que faz                                                                                                                          |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `ordens.js`       | `VUS` investidores novos enviando ordens limitadas aleatórias (±2% do preço inicial) pelo REST. Threshold do RNF-03: p95 ≤ 500 ms. |
-| `conferencia.sql` | Conservação de dinheiro e ações, reservas iguais ao livro e nada negativo (base do T-15).                                          |
+| Arquivo           | O que faz                                                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ordens.js`       | `VUS` investidores novos enviando ordens limitadas aleatórias (±2% do preço inicial) pelo REST. Threshold do RNF-03: p95 ≤ 500 ms.                 |
+| `tempo-real.mjs`  | RNF-02: abre N Home Brokers (WebSocket) e mede o atraso de cada `NEGOCIO` desde o `executado_em` gravado pelo Motor. Rode junto com o `ordens.js`. |
+| `conferencia.sql` | Conservação de dinheiro e ações, reservas iguais ao livro e nada negativo (base do T-15).                                                          |
 
 O `--network host` só funciona no Linux. No Mac/Windows, use `-e GATEWAY=http://host.docker.internal:3001`.
 
@@ -30,10 +31,14 @@ compose, banco recém-criado, 20 s por rodada.
 A conferência rodou depois da rodada de 50 (3.161 ordens, 2.127 negócios no banco): dinheiro, ações
 dos três ativos e reservas batem, e nada ficou negativo.
 
+**RNF-02:** com 50 conexões observando (`node load-tests/tempo-real.mjs 50 25`) e 50 usuários
+enviando ordens (~124 ordens/s), chegaram 99.550 eventos `NEGOCIO`: p50 de 7 ms, p95 de 12 ms e
+máximo de 97 ms, contra o limite de 1 s no p95. O atraso é medido a partir do horário do
+negócio no banco, então inclui a gravação, a publicação no Redis e o repasse pelo Gateway.
+
 Durante a carga, o Prometheus (`http://localhost:9090`) mostra as mesmas grandezas pelo lado do
 servidor; as consultas prontas estão no topo de `infra/prometheus/prometheus.yml`. Na rodada de 20
 usuários, `histogram_quantile` deu p95 de 19 ms, coerente com o k6.
 
 **Falta para o CA-04:** rodar na máquina da demo, registrar CPU e memória (`docker stats` ou as
-métricas `bolsa_gateway_process_*`) e medir o tempo de um negócio chegar aos Home Brokers pelo
-WebSocket (RNF-02, ainda não medido).
+métricas `bolsa_gateway_process_*`) e repetir o RNF-02 com os Home Brokers em outras máquinas.
