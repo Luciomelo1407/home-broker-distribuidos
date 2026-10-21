@@ -4,3 +4,13 @@ packages:
   - apps/web
   - apps/agents
   - packages/*
+
+# Versão compatível com Next/Vitest/prom-client e anterior à publicação bloqueada
+# pela política de idade mínima de dependências do ambiente de validação.
+overrides:
+  '@opentelemetry/api': 1.9.0
+
+# As distribuições já trazem binários opcionais; nenhum pós-install é autorizado.
+allowBuilds:
+  '@parcel/watcher': false
+  unrs-resolver: false

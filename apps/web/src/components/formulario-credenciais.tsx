@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ErroApi } from '../api/rest';
 import { salvarSessao } from '../lib/sessao';
 
@@ -17,20 +17,38 @@ export function FormularioCredenciais({ modo }: Props) {
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState<string>();
   const [enviando, setEnviando] = useState(false);
+  const [contaCriada, setContaCriada] = useState(false);
+  const ocupado = useRef(false);
+  const ativo = useRef(true);
+  useEffect(() => {
+    ativo.current = true;
+    return () => {
+      ativo.current = false;
+    };
+  }, []);
 
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
+    if (ocupado.current) return;
+    ocupado.current = true;
     setErro(undefined);
     setEnviando(true);
     try {
-      if (modo === 'cadastro') await api.cadastrar(nomeUsuario, senha);
+      if (modo === 'cadastro' && !contaCriada) {
+        await api.cadastrar(nomeUsuario, senha);
+        if (!ativo.current) return;
+        setContaCriada(true);
+      }
       const login = await api.entrar(nomeUsuario, senha);
+      if (!ativo.current) return;
       salvarSessao(login);
       router.replace('/painel/');
     } catch (e) {
-      setErro(e instanceof ErroApi ? e.message : 'erro inesperado');
+      if (ativo.current)
+        setErro(e instanceof ErroApi ? e.message : 'não foi possível concluir o acesso');
     } finally {
-      setEnviando(false);
+      ocupado.current = false;
+      if (ativo.current) setEnviando(false);
     }
   }
 
@@ -40,12 +58,20 @@ export function FormularioCredenciais({ modo }: Props) {
       <form className="cartao acesso" onSubmit={(e) => void enviar(e)}>
         <h1>Simulador de Bolsa</h1>
         <h2>{titulo}</h2>
+        {contaCriada && (
+          <p role="status">
+            Conta criada. Se o acesso falhou, tente entrar novamente abaixo ou use a página de
+            login.
+          </p>
+        )}
         <label>
           Usuário
           <input
             value={nomeUsuario}
             onChange={(e) => setNomeUsuario(e.target.value)}
             autoComplete="username"
+            pattern="[A-Za-z0-9_.-]+"
+            disabled={enviando || contaCriada}
             minLength={3}
             maxLength={50}
             required
@@ -55,6 +81,7 @@ export function FormularioCredenciais({ modo }: Props) {
           Senha
           <input
             type="password"
+            disabled={enviando}
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
             autoComplete={modo === 'login' ? 'current-password' : 'new-password'}
@@ -69,7 +96,7 @@ export function FormularioCredenciais({ modo }: Props) {
           </p>
         )}
         <button type="submit" disabled={enviando}>
-          {enviando ? 'Aguarde…' : titulo}
+          {enviando ? 'Aguarde…' : contaCriada ? 'Entrar na conta criada' : titulo}
         </button>
         {modo === 'login' ? (
           <p>

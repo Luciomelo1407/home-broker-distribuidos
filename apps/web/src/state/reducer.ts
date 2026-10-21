@@ -13,6 +13,7 @@ import type {
 
 /** Quantos negócios recentes a tela guarda. */
 export const LIMITE_NEGOCIOS = 20;
+export type FonteLeitura = 'carteira' | 'historico' | 'mercado';
 
 export interface EstadoTela {
   /** WebSocket aberto agora (RNF-11: a tela mostra "desconectado" quando cai). */
@@ -37,6 +38,8 @@ export interface EstadoTela {
   negocios: NegocioDto[];
   conectados?: number;
   erro?: string;
+  mercadoDisponivel: boolean;
+  falhasLeitura: Partial<Record<FonteLeitura, string>>;
 }
 
 export type Acao =
@@ -45,6 +48,7 @@ export type Acao =
   | { tipo: 'CARTEIRA'; carteira: CarteiraRespostaDto }
   | { tipo: 'MERCADO'; mercado: MercadoRespostaDto }
   | { tipo: 'HISTORICO'; historico: HistoricoRespostaDto }
+  | { tipo: 'FALHA_LEITURA'; fonte: FonteLeitura; mensagem: string }
   | { tipo: 'ORDEM_ENVIADA'; ordem: OrdemResumoDto };
 
 export const estadoInicial: EstadoTela = {
@@ -58,6 +62,8 @@ export const estadoInicial: EstadoTela = {
   negocios: [],
   livros: {},
   meusNegocios: [],
+  mercadoDisponivel: true,
+  falhasLeitura: {},
 };
 
 /**
@@ -68,10 +74,17 @@ export const estadoInicial: EstadoTela = {
 export function reducer(estado: EstadoTela, acao: Acao): EstadoTela {
   switch (acao.tipo) {
     case 'CONEXAO':
-      return { ...estado, conectado: acao.conectado };
+      return {
+        ...estado,
+        conectado: acao.conectado,
+        carregado: acao.conectado && estado.carregado,
+      };
+    case 'FALHA_LEITURA':
+      return { ...estado, falhasLeitura: { ...estado.falhasLeitura, [acao.fonte]: acao.mensagem } };
     case 'CARTEIRA':
       return {
         ...estado,
+        falhasLeitura: { ...estado.falhasLeitura, carteira: undefined },
         saldoDisponivel: acao.carteira.saldoDisponivel,
         saldoReservado: acao.carteira.saldoReservado,
         posicoes: acao.carteira.posicoes,
@@ -82,18 +95,17 @@ export function reducer(estado: EstadoTela, acao: Acao): EstadoTela {
         },
       };
     case 'HISTORICO':
-      // O histórico é a fonte mais completa das ordens; o que já veio por evento prevalece
+      // Avança estados pelo histórico sem regredir uma execução já recebida por evento.
       return {
         ...estado,
-        ordens: [
-          ...estado.ordens,
-          ...acao.historico.ordens.filter((h) => !estado.ordens.some((o) => o.id === h.id)),
-        ].sort((a, b) => b.id - a.id),
+        falhasLeitura: { ...estado.falhasLeitura, historico: undefined },
+        ordens: acao.historico.ordens.reduce(comOrdem, estado.ordens).sort((a, b) => b.id - a.id),
         meusNegocios: acao.historico.negocios,
       };
     case 'MERCADO':
       return {
         ...estado,
+        falhasLeitura: { ...estado.falhasLeitura, mercado: undefined },
         nomes: Object.fromEntries(acao.mercado.ativos.map((a) => [a.codigo, a.nomeEmpresa])),
         mercado: estado.carregado
           ? estado.mercado
@@ -117,7 +129,11 @@ function aplicarEvento(estado: EstadoTela, evento: EventoMercado): EstadoTela {
       return {
         ...estado,
         carregado: true,
+        mercadoDisponivel: true,
         erro: undefined,
+        livros: {},
+        patrimonio: undefined,
+        saldoReservado: undefined,
         saldoDisponivel: evento.dados.saldo,
         posicoes: evento.dados.posicoes,
         // As já encerradas que a tela viu continuam na lista; as abertas vêm do servidor
@@ -146,7 +162,12 @@ function aplicarEvento(estado: EstadoTela, evento: EventoMercado): EstadoTela {
     case 'PRESENCA':
       return { ...estado, conectados: evento.dados.conectados };
     case 'ERRO':
-      return { ...estado, erro: evento.dados.mensagem };
+      return {
+        ...estado,
+        erro: evento.dados.mensagem,
+        mercadoDisponivel:
+          evento.dados.codigo === 'MERCADO_INDISPONIVEL' ? false : estado.mercadoDisponivel,
+      };
     case 'LIVRO':
       return { ...estado, livros: { ...estado.livros, [evento.dados.ativo]: evento.dados } };
   }
@@ -154,8 +175,14 @@ function aplicarEvento(estado: EstadoTela, evento: EventoMercado): EstadoTela {
 
 /** Substitui a ordem com o mesmo id ou a põe no topo. */
 function comOrdem(ordens: OrdemResumoDto[], ordem: OrdemResumoDto): OrdemResumoDto[] {
-  const existe = ordens.some((o) => o.id === ordem.id);
-  return existe ? ordens.map((o) => (o.id === ordem.id ? ordem : o)) : [ordem, ...ordens];
+  const atual = ordens.find((o) => o.id === ordem.id);
+  if (
+    atual &&
+    (atual.quantidadeExecutada > ordem.quantidadeExecutada ||
+      (!abertaOuParcial(atual) && atual.status !== ordem.status))
+  )
+    return ordens;
+  return atual ? ordens.map((o) => (o.id === ordem.id ? ordem : o)) : [ordem, ...ordens];
 }
 
 function abertaOuParcial(ordem: OrdemResumoDto): boolean {

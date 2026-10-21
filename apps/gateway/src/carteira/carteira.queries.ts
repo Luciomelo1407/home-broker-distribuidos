@@ -97,7 +97,7 @@ export async function buscarHistorico(
             upper(o.lado::text)          AS lado,
             n.preco::text                AS preco,
             n.quantidade,
-            to_char(n.executado_em, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS momento
+            to_char(n.executado_em AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS momento
        FROM negocios n
        JOIN ordens o ON o.id IN (n.ordem_compra_id, n.ordem_venda_id)
        JOIN ativos a ON a.id = n.ativo_id

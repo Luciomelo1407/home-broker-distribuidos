@@ -91,7 +91,7 @@ export class AuthService implements OnModuleInit {
     if (!token) return undefined;
     try {
       const conteudo = await this.jwt.verifyAsync<Partial<ConteudoDoToken>>(token);
-      return Number.isInteger(conteudo.sub) && (conteudo.sub ?? 0) > 0
+      return Number.isSafeInteger(conteudo.sub) && (conteudo.sub ?? 0) > 0
         ? { id: conteudo.sub as number }
         : undefined;
     } catch {

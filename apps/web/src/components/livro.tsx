@@ -27,13 +27,17 @@ export function Livro({ ativo, livro, aoEscolherPreco }: Props) {
           </thead>
           <tbody>
             {ofertas.map((o) => (
-              <tr
-                key={o.preco}
-                className="clicavel"
-                onClick={() => aoEscolherPreco(o.preco)}
-                title="Usar este preço na ordem"
-              >
-                <td className={`num ${classe}`}>{formatarDinheiro(o.preco)}</td>
+              <tr key={o.preco}>
+                <td className={`num ${classe}`}>
+                  <button
+                    type="button"
+                    className="secundario pequeno"
+                    onClick={() => aoEscolherPreco(o.preco)}
+                    aria-label={`Usar preço ${o.preco} na ordem`}
+                  >
+                    {formatarDinheiro(o.preco)}
+                  </button>
+                </td>
                 <td className="num">{formatarQuantidade(o.quantidade)}</td>
               </tr>
             ))}

@@ -2,7 +2,8 @@
 
 import type { CriarOrdemRequisicaoDto, OrdemRespostaDto } from '@bolsa/contracts';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
-import { api } from '../api/rest';
+import { api, ErroApi } from '../api/rest';
+import { LeiturasPainel } from './leituras';
 import { conectarWs } from '../api/ws';
 import type { Sessao } from '../lib/sessao';
 import { estadoInicial, reducer } from './reducer';
@@ -39,29 +40,22 @@ function useAgendada(buscar: () => void, ms: number): [() => void, () => void] {
 export function usePainel(sessao: Sessao, aoPerderSessao: () => void) {
   const [estado, despachar] = useReducer(reducer, estadoInicial);
 
+  const leituras = useRef<LeiturasPainel | undefined>(undefined);
   const buscarCarteira = useCallback(() => {
-    api
-      .carteira(sessao.token)
-      .then((carteira) => despachar({ tipo: 'CARTEIRA', carteira }))
-      .catch(() => undefined);
-  }, [sessao.token]);
+    void leituras.current?.carteira();
+  }, []);
   const buscarHistorico = useCallback(() => {
-    api
-      .historico(sessao.token)
-      .then((historico) => despachar({ tipo: 'HISTORICO', historico }))
-      .catch(() => undefined);
-  }, [sessao.token]);
+    void leituras.current?.historico();
+  }, []);
   const [recarregarCarteira, pararCarteira] = useAgendada(buscarCarteira, JANELA_RECARGA_MS);
   const [recarregarHistorico, pararHistorico] = useAgendada(buscarHistorico, JANELA_RECARGA_MS);
 
   useEffect(() => {
-    // Na abertura, sem esperar a janela: a tela já começa com carteira e histórico
+    const atuais = new LeiturasPainel(sessao.token, despachar, aoPerderSessao);
+    leituras.current = atuais;
     buscarCarteira();
     buscarHistorico();
-    api
-      .mercado()
-      .then((mercado) => despachar({ tipo: 'MERCADO', mercado }))
-      .catch(() => undefined);
+    void atuais.mercado();
     const fechar = conectarWs(sessao.token, {
       aoEvento: (evento) => {
         despachar({ tipo: 'EVENTO', evento });
@@ -74,6 +68,7 @@ export function usePainel(sessao: Sessao, aoPerderSessao: () => void) {
       aoRecusarToken: aoPerderSessao,
     });
     return () => {
+      atuais.cancelar();
       fechar();
       pararCarteira();
       pararHistorico();
@@ -91,23 +86,61 @@ export function usePainel(sessao: Sessao, aoPerderSessao: () => void) {
 
   const enviarOrdem = useCallback(
     async (ordem: CriarOrdemRequisicaoDto): Promise<OrdemRespostaDto> => {
-      const resposta = await api.enviarOrdem(sessao.token, ordem);
+      const atual = leituras.current;
+      let resposta: OrdemRespostaDto;
+      try {
+        resposta = await api.enviarOrdem(sessao.token, ordem);
+      } catch (erro) {
+        if (atual?.estaAtiva() && erro instanceof ErroApi && erro.status === 401) aoPerderSessao();
+        throw erro;
+      }
+      if (!atual?.estaAtiva()) return resposta;
       despachar({ tipo: 'ORDEM_ENVIADA', ordem: resposta });
       recarregarCarteira();
+      recarregarHistorico();
       return resposta;
     },
-    [sessao.token, recarregarCarteira],
+    [sessao.token, recarregarCarteira, recarregarHistorico, aoPerderSessao],
   );
 
   const cancelarOrdem = useCallback(
     async (id: number) => {
-      const ordem = await api.cancelarOrdem(sessao.token, id);
+      const atual = leituras.current;
+      let ordem: OrdemRespostaDto;
+      try {
+        ordem = await api.cancelarOrdem(sessao.token, id);
+      } catch (erro) {
+        if (atual?.estaAtiva() && erro instanceof ErroApi && erro.status === 401) aoPerderSessao();
+        throw erro;
+      }
+      if (!atual?.estaAtiva()) return ordem;
       despachar({ tipo: 'ORDEM_ENVIADA', ordem });
       recarregarCarteira();
+      recarregarHistorico();
       return ordem;
     },
-    [sessao.token, recarregarCarteira],
+    [sessao.token, recarregarCarteira, recarregarHistorico, aoPerderSessao],
   );
 
-  return { estado, enviarOrdem, cancelarOrdem };
+  const recarregar = () => {
+    buscarCarteira();
+    buscarHistorico();
+    void leituras.current?.mercado();
+  };
+  const consultarOrdem = async (id: number) => {
+    const atual = leituras.current;
+    try {
+      const ordem = await api.consultarOrdem(sessao.token, id);
+      if (atual?.estaAtiva()) {
+        despachar({ tipo: 'ORDEM_ENVIADA', ordem });
+        recarregarCarteira();
+        recarregarHistorico();
+      }
+      return ordem;
+    } catch (erro) {
+      if (atual?.estaAtiva() && erro instanceof ErroApi && erro.status === 401) aoPerderSessao();
+      throw erro;
+    }
+  };
+  return { estado, enviarOrdem, cancelarOrdem, consultarOrdem, recarregar };
 }

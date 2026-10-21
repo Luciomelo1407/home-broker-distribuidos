@@ -3,6 +3,9 @@
 Trabalho de Sistemas Distribuídos (UFS). Os documentos de requisitos, arquitetura, modelo de dados e o
 plano de implementação estão em [`docs/`](docs/).
 
+A revisão e os complementos do Dev 4, as verificações executadas e o roteiro de validação final
+estão em [`docs/revisao-dev4.md`](docs/revisao-dev4.md).
+
 ## Situação em 21/10/2026 (Parte 1)
 
 > Seção temporária: sai do README quando os PRs abaixo estiverem na `main`. As decisões de integração
@@ -63,12 +66,12 @@ decidido em nome de cada um.
 
 ### O que falta (próximo ponto: F2, ~04/11)
 
-| Dono  | Pendência                                                                                        |
-| ----- | ------------------------------------------------------------------------------------------------ |
-| Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker |
-| Dev 2 | revisar a casca do Motor e as métricas; ensaiar o `docs/demo-falha.md` na máquina da demo        |
-| Dev 3 | revisar o `agents` (`docs/agentes.md`); RF-021 (eventos econômicos, Could) se sobrar tempo       |
-| Dev 4 | revisar `auth`, seed, `carteira` e `web` (P1 e P2)                                               |
+| Dono  | Pendência                                                                                                                  |
+| ----- | -------------------------------------------------------------------------------------------------------------------------- |
+| Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker                           |
+| Dev 2 | revisar a casca do Motor e as métricas; ensaiar o `docs/demo-falha.md` na máquina da demo                                  |
+| Dev 3 | revisar o `agents` (`docs/agentes.md`); RF-021 (eventos econômicos, Could) se sobrar tempo                                 |
+| Dev 4 | revisão local de `auth`, seed, `carteira` e `web` concluída; validar com serviços reais e preparar o [PR](docs/pr-dev4.md) |
 
 ## Pré-requisitos
 

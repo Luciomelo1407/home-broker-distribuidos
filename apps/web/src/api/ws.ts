@@ -25,17 +25,23 @@ export function conectarWs(token: string, ouvintes: OuvintesWs): () => void {
 
   const abrir = () => {
     socket = new WebSocket(urlDoWebSocket(token));
-    socket.onopen = () => ouvintes.aoMudarConexao(true);
+    // Conexão aberta ainda não significa estado recuperado: aguarda o SNAPSHOT.
+    socket.onopen = () => {
+      if (!encerrado) ouvintes.aoMudarConexao(false);
+    };
     socket.onmessage = (mensagem) => {
+      if (encerrado) return;
       try {
-        ouvintes.aoEvento(JSON.parse(String(mensagem.data)) as EventoMercado);
+        const evento = JSON.parse(String(mensagem.data)) as EventoMercado;
+        ouvintes.aoEvento(evento);
+        if (evento.tipo === 'SNAPSHOT') ouvintes.aoMudarConexao(true);
       } catch {
         // Mensagem fora do contrato: ignorada, a próxima pode estar certa
       }
     };
     socket.onclose = (fechamento) => {
-      ouvintes.aoMudarConexao(false);
       if (encerrado) return;
+      ouvintes.aoMudarConexao(false);
       if (fechamento.code === FECHAMENTO_NAO_AUTENTICADO) {
         ouvintes.aoRecusarToken();
         return;

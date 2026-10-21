@@ -31,7 +31,18 @@ export function Mercado({ mercado, nomes, selecionado, aoEscolher }: Props) {
               title="Ver o livro e usar na ordem"
             >
               <td>
-                <strong>{a.ativo}</strong>
+                <button
+                  type="button"
+                  className="secundario pequeno"
+                  aria-label={`Selecionar ${a.ativo}`}
+                  aria-pressed={a.ativo === selecionado}
+                  onClick={(evento) => {
+                    evento.stopPropagation();
+                    aoEscolher(a);
+                  }}
+                >
+                  {a.ativo}
+                </button>
                 {nomes[a.ativo] && <span className="sutil"> {nomes[a.ativo]}</span>}
               </td>
               <td className="num">{formatarDinheiro(a.precoAtual)}</td>
