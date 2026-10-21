@@ -5,15 +5,36 @@
   "description": "Contratos das rotas REST e respostas de erro da Parte 1 do Simulador de Bolsa.",
   "type": "object",
   "oneOf": [
-    { "$ref": "#/definitions/RespostaErro" },
-    { "$ref": "#/definitions/AuthCadastroRequisicao" },
-    { "$ref": "#/definitions/AuthCadastroResposta" },
-    { "$ref": "#/definitions/AuthLoginRequisicao" },
-    { "$ref": "#/definitions/AuthLoginResposta" },
-    { "$ref": "#/definitions/CriarOrdemRequisicao" },
-    { "$ref": "#/definitions/OrdemResposta" },
-    { "$ref": "#/definitions/CarteiraResposta" },
-    { "$ref": "#/definitions/MercadoResposta" }
+    {
+      "$ref": "#/definitions/RespostaErro"
+    },
+    {
+      "$ref": "#/definitions/AuthCadastroRequisicao"
+    },
+    {
+      "$ref": "#/definitions/AuthCadastroResposta"
+    },
+    {
+      "$ref": "#/definitions/AuthLoginRequisicao"
+    },
+    {
+      "$ref": "#/definitions/AuthLoginResposta"
+    },
+    {
+      "$ref": "#/definitions/CriarOrdemRequisicao"
+    },
+    {
+      "$ref": "#/definitions/OrdemResposta"
+    },
+    {
+      "$ref": "#/definitions/CarteiraResposta"
+    },
+    {
+      "$ref": "#/definitions/MercadoResposta"
+    },
+    {
+      "$ref": "#/definitions/LivroResposta"
+    }
   ],
   "definitions": {
     "PrecoString": {
@@ -54,14 +75,20 @@
                 "ORDEM_NAO_CANCELAVEL"
               ]
             },
-            "mensagem": { "type": "string" },
+            "mensagem": {
+              "type": "string"
+            },
             "campos": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             }
           }
         },
-        "requestId": { "type": "string" }
+        "requestId": {
+          "type": "string"
+        }
       }
     },
     "AuthCadastroRequisicao": {
@@ -69,8 +96,16 @@
       "additionalProperties": false,
       "required": ["nomeUsuario", "senha"],
       "properties": {
-        "nomeUsuario": { "type": "string", "minLength": 3, "maxLength": 50 },
-        "senha": { "type": "string", "minLength": 6, "maxLength": 100 }
+        "nomeUsuario": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 50
+        },
+        "senha": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 100
+        }
       }
     },
     "AuthCadastroResposta": {
@@ -78,9 +113,16 @@
       "additionalProperties": false,
       "required": ["id", "nomeUsuario", "saldoDisponivel"],
       "properties": {
-        "id": { "type": "integer", "minimum": 1 },
-        "nomeUsuario": { "type": "string" },
-        "saldoDisponivel": { "$ref": "#/definitions/PrecoString" }
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "nomeUsuario": {
+          "type": "string"
+        },
+        "saldoDisponivel": {
+          "$ref": "#/definitions/PrecoString"
+        }
       }
     },
     "AuthLoginRequisicao": {
@@ -88,8 +130,16 @@
       "additionalProperties": false,
       "required": ["nomeUsuario", "senha"],
       "properties": {
-        "nomeUsuario": { "type": "string", "minLength": 3, "maxLength": 50 },
-        "senha": { "type": "string", "minLength": 6, "maxLength": 100 }
+        "nomeUsuario": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 50
+        },
+        "senha": {
+          "type": "string",
+          "minLength": 6,
+          "maxLength": 100
+        }
       }
     },
     "AuthLoginResposta": {
@@ -97,14 +147,21 @@
       "additionalProperties": false,
       "required": ["token", "investidor"],
       "properties": {
-        "token": { "type": "string" },
+        "token": {
+          "type": "string"
+        },
         "investidor": {
           "type": "object",
           "additionalProperties": false,
           "required": ["id", "nomeUsuario"],
           "properties": {
-            "id": { "type": "integer", "minimum": 1 },
-            "nomeUsuario": { "type": "string" }
+            "id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "nomeUsuario": {
+              "type": "string"
+            }
           }
         }
       }
@@ -114,11 +171,22 @@
       "additionalProperties": false,
       "required": ["clientOrderId", "ativo", "lado", "quantidade", "preco"],
       "properties": {
-        "clientOrderId": { "$ref": "#/definitions/UuidString" },
-        "ativo": { "type": "string" },
-        "lado": { "enum": ["COMPRA", "VENDA"] },
-        "quantidade": { "type": "integer", "minimum": 1 },
-        "preco": { "$ref": "#/definitions/PrecoString" }
+        "clientOrderId": {
+          "$ref": "#/definitions/UuidString"
+        },
+        "ativo": {
+          "type": "string"
+        },
+        "lado": {
+          "enum": ["COMPRA", "VENDA"]
+        },
+        "quantidade": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "preco": {
+          "$ref": "#/definitions/PrecoString"
+        }
       }
     },
     "OrdemResposta": {
@@ -136,15 +204,37 @@
         "status"
       ],
       "properties": {
-        "id": { "type": "integer", "minimum": 1 },
-        "clientOrderId": { "$ref": "#/definitions/UuidString" },
-        "investidorId": { "type": "integer", "minimum": 1 },
-        "ativo": { "type": "string" },
-        "lado": { "enum": ["COMPRA", "VENDA"] },
-        "precoLimite": { "$ref": "#/definitions/PrecoString" },
-        "quantidade": { "type": "integer", "minimum": 1 },
-        "quantidadeExecutada": { "type": "integer", "minimum": 0 },
-        "status": { "enum": ["ABERTA", "PARCIAL", "EXECUTADA", "CANCELADA", "REJEITADA"] },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "clientOrderId": {
+          "$ref": "#/definitions/UuidString"
+        },
+        "investidorId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "ativo": {
+          "type": "string"
+        },
+        "lado": {
+          "enum": ["COMPRA", "VENDA"]
+        },
+        "precoLimite": {
+          "$ref": "#/definitions/PrecoString"
+        },
+        "quantidade": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "quantidadeExecutada": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": ["ABERTA", "PARCIAL", "EXECUTADA", "CANCELADA", "REJEITADA"]
+        },
         "motivoRejeicao": {
           "enum": [
             "SALDO_INSUFICIENTE",
@@ -163,8 +253,12 @@
       "additionalProperties": false,
       "required": ["saldoDisponivel", "saldoReservado", "posicoes"],
       "properties": {
-        "saldoDisponivel": { "$ref": "#/definitions/PrecoString" },
-        "saldoReservado": { "$ref": "#/definitions/PrecoString" },
+        "saldoDisponivel": {
+          "$ref": "#/definitions/PrecoString"
+        },
+        "saldoReservado": {
+          "$ref": "#/definitions/PrecoString"
+        },
         "posicoes": {
           "type": "array",
           "items": {
@@ -172,10 +266,20 @@
             "additionalProperties": false,
             "required": ["ativo", "quantidadeDisponivel", "quantidadeReservada", "precoMedio"],
             "properties": {
-              "ativo": { "type": "string" },
-              "quantidadeDisponivel": { "type": "integer", "minimum": 0 },
-              "quantidadeReservada": { "type": "integer", "minimum": 0 },
-              "precoMedio": { "$ref": "#/definitions/PrecoString" }
+              "ativo": {
+                "type": "string"
+              },
+              "quantidadeDisponivel": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quantidadeReservada": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "precoMedio": {
+                "$ref": "#/definitions/PrecoString"
+              }
             }
           }
         }
@@ -200,12 +304,72 @@
               "volume"
             ],
             "properties": {
-              "codigo": { "type": "string" },
-              "nomeEmpresa": { "type": "string" },
-              "precoAtual": { "$ref": "#/definitions/PrecoString" },
-              "precoReferencia": { "$ref": "#/definitions/PrecoString" },
-              "variacao": { "$ref": "#/definitions/PercentualString" },
-              "volume": { "type": "integer", "minimum": 0 }
+              "codigo": {
+                "type": "string"
+              },
+              "nomeEmpresa": {
+                "type": "string"
+              },
+              "precoAtual": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "precoReferencia": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "variacao": {
+                "$ref": "#/definitions/PercentualString"
+              },
+              "volume": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "LivroResposta": {
+      "description": "GET /mercado/livro/:ativo (RF-007). Igual a dados do evento LIVRO: até 5 níveis por lado, melhor oferta primeiro.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ativo", "ofertasCompra", "ofertasVenda"],
+      "properties": {
+        "ativo": {
+          "type": "string"
+        },
+        "ofertasCompra": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["preco", "quantidade"],
+            "properties": {
+              "preco": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "quantidade": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "ofertasVenda": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["preco", "quantidade"],
+            "properties": {
+              "preco": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "quantidade": {
+                "type": "integer",
+                "minimum": 1
+              }
             }
           }
         }

@@ -69,6 +69,8 @@ describe('Contratos T-14 (lado TS com Ajv)', () => {
     'api-carteira-res.json': 'CarteiraResposta',
     'api-mercado-res.json': 'MercadoResposta',
     'api-erro.json': 'RespostaErro',
+    'api-livro-res.json': 'LivroResposta',
+    'api-livro-quantidade-zero.json': 'LivroResposta',
     'api-erro-nao-cancelavel.json': 'RespostaErro',
     'api-cadastro-nome-curto.json': 'AuthCadastroRequisicao',
     'api-erro-codigo-desconhecido.json': 'RespostaErro',

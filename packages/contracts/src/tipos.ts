@@ -76,6 +76,13 @@ export interface OrdemRespostaDto extends OrdemResumoDto {
   investidorId: number;
 }
 
+/** GET /mercado/livro/:ativo (RF-007): o mesmo formato de `LIVRO.dados`. */
+export interface LivroRespostaDto {
+  ativo: string;
+  ofertasCompra: OfertaLivroDto[];
+  ofertasVenda: OfertaLivroDto[];
+}
+
 export interface CarteiraRespostaDto {
   saldoDisponivel: string;
   saldoReservado: string;
