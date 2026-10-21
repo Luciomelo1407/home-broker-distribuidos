@@ -72,6 +72,22 @@ describe('WebSocket /ws', () => {
       .send({ clientOrderId: randomUUID(), ativo: 'DEF4', lado, quantidade: 5, preco })
       .expect(201);
 
+  /**
+   * Um preço dentro do spread atual do ativo: acima da melhor compra e abaixo da melhor
+   * venda, com folga. Uma venda nele vira a melhor oferta, e uma compra nele só casa com
+   * ela, sejam quais forem as ordens que outros testes ou o k6 deixaram no banco.
+   */
+  async function precoNoSpread(ativo: string): Promise<string> {
+    const { body } = await request(app.getHttpServer()).get(`/mercado/livro/${ativo}`);
+    const centavos = (preco?: string) =>
+      preco === undefined ? undefined : Math.round(Number(preco) * 100);
+    const compra = centavos(body.ofertasCompra[0]?.preco) ?? 0;
+    const venda = centavos(body.ofertasVenda[0]?.preco) ?? compra + 100_000;
+    if (venda - compra < 3) throw new Error(`spread de ${ativo} fechado; use um banco limpo`);
+    const meio = Math.floor((compra + venda) / 2);
+    return `${Math.floor(meio / 100)}.${String(meio % 100).padStart(2, '0')}`;
+  }
+
   it.each([
     ['sem token', undefined],
     ['com token inválido', 'nao.e.jwt'],
@@ -109,9 +125,9 @@ describe('WebSocket /ws', () => {
     const outro = conectar(tokenOutro);
     await Promise.all([vendedor, comprador, outro].map((c) => c.esperar('SNAPSHOT')));
 
-    // Preço alto para casar só entre os dois, sem ordens de outros testes no caminho
-    const venda = await postarOrdem(tokenVendedor, 'VENDA', '9000.00');
-    await postarOrdem(tokenComprador, 'COMPRA', '9000.00');
+    const preco = await precoNoSpread('DEF4');
+    const venda = await postarOrdem(tokenVendedor, 'VENDA', preco);
+    await postarOrdem(tokenComprador, 'COMPRA', preco);
 
     await expect(
       vendedor.esperar(
@@ -122,10 +138,10 @@ describe('WebSocket /ws', () => {
     await expect(
       comprador.esperar('ORDEM_ATUALIZADA', (e) => e.dados.status === 'EXECUTADA'),
     ).resolves.toBeDefined();
-    const negocio = await outro.esperar('NEGOCIO', (e) => e.dados.preco === '9000.00');
+    const negocio = await outro.esperar('NEGOCIO', (e) => e.dados.preco === preco);
     expect(negocio.dados).toMatchObject({ ativo: 'DEF4', quantidade: 5 });
     await expect(
-      outro.esperar('PRECO', (e) => e.dados.ativo === 'DEF4' && e.dados.precoAtual === '9000.00'),
+      outro.esperar('PRECO', (e) => e.dados.ativo === 'DEF4' && e.dados.precoAtual === preco),
     ).resolves.toBeDefined();
     // O outro investidor não vê as ordens de ninguém (RNF-08)
     await new Promise((r) => setTimeout(r, 100));
@@ -134,6 +150,42 @@ describe('WebSocket /ws', () => {
     // E o GET /mercado já reflete o negócio (RF-017)
     const mercado = await request(app.getHttpServer()).get('/mercado');
     const def4 = mercado.body.ativos.find((a: { codigo: string }) => a.codigo === 'DEF4');
-    expect(def4.precoAtual).toBe('9000.00');
+    expect(def4.precoAtual).toBe(preco);
+  });
+
+  it('RF-007: uma ordem que não casa aparece no livro de todos, agregada por preço', async () => {
+    const [tokenA, tokenB] = await Promise.all([investidorLogado(), investidorLogado()]);
+    const observador = conectar(tokenB);
+    await observador.esperar('SNAPSHOT');
+    // O LIVRO de cada ativo chega logo depois do SNAPSHOT
+    await observador.esperar('LIVRO', (e) => e.dados.ativo === 'GHI3');
+
+    // Dentro do spread: não casa com nada e vira a melhor compra, então entra no top-5
+    const preco = await precoNoSpread('GHI3');
+    const compra = (quantidade: number) =>
+      request(app.getHttpServer())
+        .post('/ordens')
+        .set('authorization', `Bearer ${tokenA}`)
+        .send({ clientOrderId: randomUUID(), ativo: 'GHI3', lado: 'COMPRA', quantidade, preco })
+        .expect(201);
+    await compra(3);
+    await compra(4);
+
+    const temNivel = (ofertas: { preco: string; quantidade: number }[]) =>
+      ofertas.some((o) => o.preco === preco && o.quantidade >= 7);
+    await expect(
+      observador.esperar(
+        'LIVRO',
+        (e) => e.dados.ativo === 'GHI3' && temNivel(e.dados.ofertasCompra),
+      ),
+    ).resolves.toBeDefined();
+
+    const rest = await request(app.getHttpServer()).get('/mercado/livro/GHI3');
+    expect(rest.status).toBe(200);
+    expect(rest.body.ofertasCompra.length).toBeLessThanOrEqual(5);
+    // Melhor compra primeiro: preços em ordem decrescente
+    const precos = rest.body.ofertasCompra.map((o: { preco: string }) => Number(o.preco));
+    expect([...precos].sort((a, b) => b - a)).toEqual(precos);
+    expect((await request(app.getHttpServer()).get('/mercado/livro/XYZ9')).status).toBe(404);
   });
 });

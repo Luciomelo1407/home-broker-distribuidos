@@ -1,0 +1,19 @@
+{
+  "ativo": "DEF4",
+  "ofertasCompra": [
+    {
+      "preco": "35.40",
+      "quantidade": 500
+    },
+    {
+      "preco": "35.30",
+      "quantidade": 800
+    }
+  ],
+  "ofertasVenda": [
+    {
+      "preco": "1.00",
+      "quantidade": 0
+    }
+  ]
+}

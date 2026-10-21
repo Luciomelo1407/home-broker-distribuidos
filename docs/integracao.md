@@ -75,6 +75,12 @@
   `ws` do navegador responde ao ping sozinho, então o Home Broker não precisa fazer nada.
 - O cliente não envia mensagens: ordens vão pelo REST. O que o cliente mandar é ignorado.
 - `PRESENCA.conectados` conta **conexões**, não pessoas: duas abas do mesmo investidor contam 2.
+- **Livro (RF-007):** logo depois do `SNAPSHOT` vai um `LIVRO` por ativo, e depois um `LIVRO` para
+  todos sempre que uma ordem do ativo muda. São até 5 níveis por lado, agregados por preço, com a
+  melhor oferta primeiro. O mesmo formato sai em `GET /mercado/livro/:ativo` (`LivroResposta` no
+  `api-rest`). O Gateway relê o livro do Postgres depois de cada resultado do Motor que tocou o
+  ativo (`mercado/livro.service.ts`), juntando comandos seguidos em 50 ms; o Motor não publica
+  nada a mais.
 
 ## 6. Gateway: `BarramentoDeOrdens` (`ordens/barramento-de-ordens.ts`)
 
@@ -155,9 +161,10 @@
   - a sessão fica no `localStorage` (F5 e reconexão não pedem login, RF-004);
   - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
     duplicar a ordem.
-  - Faltam: livro de ofertas (RF-007), histórico (RF-008), patrimônio e P/L (RF-005 P2) e
-    o botão de cancelar (RF-012; a rota `DELETE /ordens/:id` já existe, §6). O `LIVRO` é ignorado
-    pelo reducer por enquanto.
+  - Faltam: livro de ofertas na tela (RF-007; os dados já chegam, §5), histórico (RF-008),
+    patrimônio e P/L (RF-005 P2) e o botão de cancelar (RF-012; a rota `DELETE /ordens/:id` já
+    existe, §6). O `LIVRO` é ignorado pelo reducer por enquanto: basta guardá-lo por ativo. As
+    melhores ofertas do RF-006 são o primeiro nível de cada lado do livro.
 - O Gateway agora aceita CORS de qualquer origem (`main.ts`). É seguro porque a sessão é um JWT no
   header, não cookie.
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o
@@ -180,7 +187,9 @@
 - **Nova variável `LOG_LEVEL`** no `.env` (copie do `.env.example`). Sem ela, o Gateway não sobe.
 - **CI** no GitHub Actions roda lint, Prettier, typecheck, testes de TS e Rust, a integração do
   Motor e o e2e do Gateway em todo PR.
-- **Os e2e escrevem no banco do compose** (investidores `e2e-*`/`ws-*`, ordens e um negócio de
-  DEF4 a R$ 9.000, que muda o preço atual). Antes de uma demo, rode `docker compose down -v`.
+- **Os e2e e o k6 escrevem no banco do compose** (investidores `e2e-*`/`ws-*`/`k6-*`, ordens e
+  negócios que mudam os preços). Antes de uma demo, rode `docker compose down -v`. Os e2e do
+  WebSocket escolhem preços dentro do spread atual (`precoNoSpread`), então passam mesmo com o
+  livro cheio de ordens de outros testes.
 - O **Motor agora fica de pé** no compose (`restart: unless-stopped`) e precisa de `REDIS_URL` e
   `ORDEM_TIMEOUT_MS`, que o compose já repassa.

@@ -15,6 +15,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { AuthService } from '../auth/auth.service';
 import { BusService, REDIS_COMANDOS } from '../bus/bus.service';
 import { CarteiraService } from '../carteira/carteira.service';
+import { LivroService } from '../mercado/livro.service';
 import { MercadoService } from '../mercado/mercado.service';
 import { eventosDoResultado } from './eventos';
 import { Presenca } from './presenca';
@@ -49,7 +50,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
   private readonly presenca: Presenca;
   private wss?: WebSocketServer;
   private ping?: NodeJS.Timeout;
-  private assinatura?: Subscription;
+  private readonly assinaturas: Subscription[] = [];
   private ultimoTotal = -1;
 
   constructor(
@@ -58,6 +59,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
     private readonly bus: BusService,
     private readonly carteira: CarteiraService,
     private readonly mercado: MercadoService,
+    private readonly livros: LivroService,
     @Inject(REDIS_COMANDOS) redis: Redis,
   ) {
     this.presenca = new Presenca(redis);
@@ -72,20 +74,28 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
         socket.close(1011, 'erro interno');
       });
     });
-    this.assinatura = this.bus.resultados$.subscribe((resultado) => {
-      const { porInvestidor, paraTodos } = eventosDoResultado(resultado);
-      for (const [socket, conexao] of this.conexoes) {
-        for (const evento of [...(porInvestidor.get(conexao.investidorId) ?? []), ...paraTodos]) {
-          this.enviar(socket, conexao, evento);
+    this.assinaturas.push(
+      this.bus.resultados$.subscribe((resultado) => {
+        const { porInvestidor, paraTodos } = eventosDoResultado(resultado);
+        for (const [socket, conexao] of this.conexoes) {
+          for (const evento of [...(porInvestidor.get(conexao.investidorId) ?? []), ...paraTodos]) {
+            this.enviar(socket, conexao, evento);
+          }
         }
-      }
-    });
+      }),
+      // RF-007: livro novo para todos quando uma ordem do ativo muda
+      this.livros.livros$.subscribe((dados) => {
+        for (const [socket, conexao] of this.conexoes) {
+          this.enviar(socket, conexao, { tipo: 'LIVRO', dados });
+        }
+      }),
+    );
     this.ping = setInterval(() => void this.verificarConexoes(), INTERVALO_PING_MS);
   }
 
   async onApplicationShutdown(): Promise<void> {
     clearInterval(this.ping);
-    this.assinatura?.unsubscribe();
+    for (const assinatura of this.assinaturas) assinatura.unsubscribe();
     await Promise.allSettled([...this.conexoes.values()].map((c) => this.presenca.remover(c.id)));
     for (const socket of this.conexoes.keys()) socket.terminate();
     this.conexoes.clear();
@@ -142,6 +152,8 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
     const pendentes = conexao.pendentes ?? [];
     conexao.pendentes = undefined;
     this.enviar(socket, conexao, snapshot);
+    // O SNAPSHOT não tem livro (schema): vai um LIVRO por ativo logo em seguida
+    for (const dados of this.livros.todos()) this.enviar(socket, conexao, { tipo: 'LIVRO', dados });
     for (const evento of pendentes) this.enviar(socket, conexao, evento);
     await this.difundirPresenca();
   }
