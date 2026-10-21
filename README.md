@@ -155,7 +155,8 @@ pnpm --filter @bolsa/gateway test:e2e
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-# integração do Motor (T-07, T-08, T-09, T-11) contra o Postgres do compose
+# integração do Motor (T-07, T-08, T-09, T-11) contra o Postgres do compose,
+# com o Motor do compose parado (o teste é um segundo escritor): docker compose stop engine
 TEST_DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo test -p engine --test processor
 ```
 

@@ -3,6 +3,10 @@
 //! Precisa de `TEST_DATABASE_URL` apontando para um banco com as migrações (o do compose
 //! serve: `postgres://engine_app:engine_dev@localhost:5432/bolsa`). Sem ela, o teste
 //! avisa e passa, para que `cargo test` continue rodando sem Docker.
+//!
+//! **Pare o Motor do compose antes** (`docker compose stop engine`): este teste é um segundo
+//! escritor no mesmo banco, e os dois juntos quebram a premissa de escritor único (o T-07
+//! pode falhar). No CI ele roda antes de o Motor subir.
 #![allow(clippy::unwrap_used, clippy::expect_used)] // testes: permitido pela regra 3.3.6
 
 use engine::contract::{MotivoRejeicao, ResultadoOrdem, StatusContrato};

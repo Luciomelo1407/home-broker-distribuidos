@@ -7,12 +7,15 @@ import { BarramentoIndisponivel, ComandoNaoConfirmado } from '../src/ordens/barr
 
 // Precisa do Redis do compose (docker compose up -d --wait redis)
 const URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+// Investidor que nunca existe: se o Motor real estiver de pé, ele descarta estes comandos
+// em vez de criar ordens no banco, e só o Motor falso do teste responde
+const INVESTIDOR_INEXISTENTE = 2_147_483_647;
 
 function comando(): ComandoOrdem {
   return {
     tipo: 'CRIAR',
     clientOrderId: randomUUID(),
-    investidorId: 1,
+    investidorId: INVESTIDOR_INEXISTENTE,
     ativo: 'ABC3',
     lado: 'COMPRA',
     quantidade: 1,
