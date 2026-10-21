@@ -4,6 +4,8 @@ import { useState } from 'react';
 import type { Sessao } from '../lib/sessao';
 import { usePainel } from '../state/use-painel';
 import { Carteira } from './carteira';
+import { Historico } from './historico';
+import { Livro } from './livro';
 import { Mercado } from './mercado';
 import { Negocios } from './negocios';
 import { NovaOrdem } from './nova-ordem';
@@ -15,8 +17,10 @@ interface Props {
 }
 
 export function Painel({ sessao, aoSair }: Props) {
-  const { estado, enviarOrdem } = usePainel(sessao, aoSair);
+  const { estado, enviarOrdem, cancelarOrdem } = usePainel(sessao, aoSair);
   const [sugestao, setSugestao] = useState<{ ativo: string; preco: string }>();
+  const [selecionado, setSelecionado] = useState<string>();
+  const ativo = selecionado ?? estado.mercado[0]?.ativo;
 
   return (
     <div className="painel">
@@ -46,9 +50,21 @@ export function Painel({ sessao, aoSair }: Props) {
           <Mercado
             mercado={estado.mercado}
             nomes={estado.nomes}
-            aoEscolher={(a) => setSugestao({ ativo: a.ativo, preco: a.precoAtual })}
+            selecionado={ativo}
+            aoEscolher={(a) => {
+              setSelecionado(a.ativo);
+              setSugestao({ ativo: a.ativo, preco: a.precoAtual });
+            }}
           />
-          <Ordens ordens={estado.ordens} />
+          {ativo && (
+            <Livro
+              ativo={ativo}
+              livro={estado.livros[ativo]}
+              aoEscolherPreco={(preco) => setSugestao({ ativo, preco })}
+            />
+          )}
+          <Ordens ordens={estado.ordens} cancelar={cancelarOrdem} />
+          <Historico negocios={estado.meusNegocios} />
         </div>
         <div className="coluna">
           <NovaOrdem
@@ -60,6 +76,7 @@ export function Painel({ sessao, aoSair }: Props) {
             saldoDisponivel={estado.saldoDisponivel}
             saldoReservado={estado.saldoReservado}
             posicoes={estado.posicoes}
+            patrimonio={estado.patrimonio}
           />
           <Negocios negocios={estado.negocios} />
         </div>

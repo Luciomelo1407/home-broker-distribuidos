@@ -2,7 +2,10 @@ import type {
   AtivoMercadoDto,
   CarteiraRespostaDto,
   EventoMercado,
+  HistoricoRespostaDto,
+  LivroRespostaDto,
   MercadoRespostaDto,
+  NegocioDoInvestidorDto,
   NegocioDto,
   OrdemResumoDto,
   PosicaoDto,
@@ -20,6 +23,12 @@ export interface EstadoTela {
   /** Só vem do GET /carteira; o SNAPSHOT não traz. */
   saldoReservado?: string;
   posicoes: PosicaoDto[];
+  /** Patrimônio e P/L (RF-005 P2): só vêm do GET /carteira, calculados no Gateway. */
+  patrimonio?: Pick<CarteiraRespostaDto, 'patrimonio' | 'lucroPrejuizo' | 'posicoes'>;
+  /** Livro de cada ativo (RF-007), do evento LIVRO. */
+  livros: Record<string, LivroRespostaDto>;
+  /** Negócios do próprio investidor (RF-008), do GET /historico. */
+  meusNegocios: NegocioDoInvestidorDto[];
   /** Ordens do investidor: as abertas do SNAPSHOT e as que mudaram depois, mais nova primeiro. */
   ordens: OrdemResumoDto[];
   mercado: AtivoMercadoDto[];
@@ -35,6 +44,7 @@ export type Acao =
   | { tipo: 'CONEXAO'; conectado: boolean }
   | { tipo: 'CARTEIRA'; carteira: CarteiraRespostaDto }
   | { tipo: 'MERCADO'; mercado: MercadoRespostaDto }
+  | { tipo: 'HISTORICO'; historico: HistoricoRespostaDto }
   | { tipo: 'ORDEM_ENVIADA'; ordem: OrdemResumoDto };
 
 export const estadoInicial: EstadoTela = {
@@ -46,6 +56,8 @@ export const estadoInicial: EstadoTela = {
   mercado: [],
   nomes: {},
   negocios: [],
+  livros: {},
+  meusNegocios: [],
 };
 
 /**
@@ -63,6 +75,21 @@ export function reducer(estado: EstadoTela, acao: Acao): EstadoTela {
         saldoDisponivel: acao.carteira.saldoDisponivel,
         saldoReservado: acao.carteira.saldoReservado,
         posicoes: acao.carteira.posicoes,
+        patrimonio: {
+          patrimonio: acao.carteira.patrimonio,
+          lucroPrejuizo: acao.carteira.lucroPrejuizo,
+          posicoes: acao.carteira.posicoes,
+        },
+      };
+    case 'HISTORICO':
+      // O histórico é a fonte mais completa das ordens; o que já veio por evento prevalece
+      return {
+        ...estado,
+        ordens: [
+          ...estado.ordens,
+          ...acao.historico.ordens.filter((h) => !estado.ordens.some((o) => o.id === h.id)),
+        ].sort((a, b) => b.id - a.id),
+        meusNegocios: acao.historico.negocios,
       };
     case 'MERCADO':
       return {
@@ -121,8 +148,7 @@ function aplicarEvento(estado: EstadoTela, evento: EventoMercado): EstadoTela {
     case 'ERRO':
       return { ...estado, erro: evento.dados.mensagem };
     case 'LIVRO':
-      // RF-007 é P2: o livro ainda não aparece na tela
-      return estado;
+      return { ...estado, livros: { ...estado.livros, [evento.dados.ativo]: evento.dados } };
   }
 }
 

@@ -19,28 +19,29 @@ real do domínio do Dev 3, não só "gravar ABERTA".
 Os branches estão empilhados: cada um parte do anterior. Abra cada PR com a **base no branch
 anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 
-| #   | Branch                             | O quê                                                       | Revisor sugerido  |
-| --- | ---------------------------------- | ----------------------------------------------------------- | ----------------- |
-| 1   | `feat/ci`                          | GitHub Actions (lint, Prettier, testes TS e Rust, e2e)      | Dev 4             |
-| 2   | `feat/gateway-observability`       | pino com redact, `LOG_LEVEL`                                | Dev 4             |
-| 3   | `feat/gateway-mercado`             | `GET /mercado`, snapshot em memória                         | Dev 4             |
-| 4   | `feat/gateway-ordens`              | `POST /ordens`, DTO, T-13, `@UsuarioAtual`                  | Dev 4             |
-| 5   | `feat/contracts-comando-resultado` | schemas do Redis, structs Rust, T-14 nos dois lados         | **Dev 2** + Dev 4 |
-| 6   | `feat/engine-casca`                | casca do Motor: stream, store, processor, T-07/08/09/11     | **Dev 2** + Dev 3 |
-| 7   | `feat/gateway-bus`                 | `gateway/bus`: XADD e espera do resultado                   | **Dev 2**         |
-| 8   | `feat/gateway-auth`                | cadastro, login, argon2id, JWT, T-12                        | **Dev 4**         |
-| 9   | `feat/gateway-carteira`            | `GET /carteira` (P1)                                        | **Dev 4**         |
-| 10  | `feat/gateway-realtime`            | WebSocket: SNAPSHOT, presença, eventos                      | Dev 2             |
-| 11  | `feat/gateway-docker`              | Dockerfile do Gateway e serviço no compose                  | Dev 2             |
-| 12  | `feat/web-p1`                      | Home Broker P1 (login, cadastro, painel)                    | **Dev 4**         |
-| 13  | `docs/readme-21-10`                | esta seção                                                  | qualquer um       |
-| 14  | `feat/gateway-ordens-cancelar`     | `GET` e `DELETE /ordens/:id`, T-10                          | Dev 4             |
-| 15  | `feat/load-tests-k6`               | k6 de ordens e SQL de conservação, 1ª medição (M5)          | Dev 3             |
-| 16  | `feat/gateway-livro`               | livro top-5 (RF-007): `GET /mercado/livro/:ativo` e `LIVRO` | Dev 4             |
-| 17  | `feat/gateway-metricas`            | métricas do Gateway (RF-026), `/metrics` e Prometheus       | Dev 2             |
-| 18  | `feat/load-tests-tempo-real`       | medição do RNF-02 (negócio até o WebSocket)                 | Dev 3             |
-| 19  | `test/realtime-rf023`              | e2e do RF-023 e e2e do WebSocket independentes do livro     | Dev 2             |
-| 20  | `feat/gateway-carteira-p2`         | patrimônio e P/L (RF-005 P2) e `GET /historico` (RF-008)    | **Dev 4**         |
+| #   | Branch                             | O quê                                                        | Revisor sugerido  |
+| --- | ---------------------------------- | ------------------------------------------------------------ | ----------------- |
+| 1   | `feat/ci`                          | GitHub Actions (lint, Prettier, testes TS e Rust, e2e)       | Dev 4             |
+| 2   | `feat/gateway-observability`       | pino com redact, `LOG_LEVEL`                                 | Dev 4             |
+| 3   | `feat/gateway-mercado`             | `GET /mercado`, snapshot em memória                          | Dev 4             |
+| 4   | `feat/gateway-ordens`              | `POST /ordens`, DTO, T-13, `@UsuarioAtual`                   | Dev 4             |
+| 5   | `feat/contracts-comando-resultado` | schemas do Redis, structs Rust, T-14 nos dois lados          | **Dev 2** + Dev 4 |
+| 6   | `feat/engine-casca`                | casca do Motor: stream, store, processor, T-07/08/09/11      | **Dev 2** + Dev 3 |
+| 7   | `feat/gateway-bus`                 | `gateway/bus`: XADD e espera do resultado                    | **Dev 2**         |
+| 8   | `feat/gateway-auth`                | cadastro, login, argon2id, JWT, T-12                         | **Dev 4**         |
+| 9   | `feat/gateway-carteira`            | `GET /carteira` (P1)                                         | **Dev 4**         |
+| 10  | `feat/gateway-realtime`            | WebSocket: SNAPSHOT, presença, eventos                       | Dev 2             |
+| 11  | `feat/gateway-docker`              | Dockerfile do Gateway e serviço no compose                   | Dev 2             |
+| 12  | `feat/web-p1`                      | Home Broker P1 (login, cadastro, painel)                     | **Dev 4**         |
+| 13  | `docs/readme-21-10`                | esta seção                                                   | qualquer um       |
+| 14  | `feat/gateway-ordens-cancelar`     | `GET` e `DELETE /ordens/:id`, T-10                           | Dev 4             |
+| 15  | `feat/load-tests-k6`               | k6 de ordens e SQL de conservação, 1ª medição (M5)           | Dev 3             |
+| 16  | `feat/gateway-livro`               | livro top-5 (RF-007): `GET /mercado/livro/:ativo` e `LIVRO`  | Dev 4             |
+| 17  | `feat/gateway-metricas`            | métricas do Gateway (RF-026), `/metrics` e Prometheus        | Dev 2             |
+| 18  | `feat/load-tests-tempo-real`       | medição do RNF-02 (negócio até o WebSocket)                  | Dev 3             |
+| 19  | `test/realtime-rf023`              | e2e do RF-023 e e2e do WebSocket independentes do livro      | Dev 2             |
+| 20  | `feat/gateway-carteira-p2`         | patrimônio e P/L (RF-005 P2) e `GET /historico` (RF-008)     | **Dev 4**         |
+| 21  | `feat/web-p2`                      | Home Broker P2: livro, cancelar, histórico, patrimônio e P/L | **Dev 4**         |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -57,13 +58,13 @@ decidido em nome de cada um.
 
 ### O que falta (próximo ponto: F2, ~04/11)
 
-| Dono  | Pendência                                                                                                        |
-| ----- | ---------------------------------------------------------------------------------------------------------------- |
-| Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker                 |
-| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05                      |
-| Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                                          |
-| Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) e botão de cancelar no `web` |
-| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)                           |
+| Dono  | Pendência                                                                                        |
+| ----- | ------------------------------------------------------------------------------------------------ |
+| Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker |
+| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05      |
+| Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                          |
+| Dev 4 | seed dos agentes (AP-05) e revisar a P2 do `web`                                                 |
+| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)           |
 
 ## Pré-requisitos
 

@@ -175,10 +175,12 @@
   - a sessão fica no `localStorage` (F5 e reconexão não pedem login, RF-004);
   - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
     duplicar a ordem.
-  - Faltam: livro de ofertas na tela (RF-007; os dados já chegam, §5), histórico (RF-008),
-    patrimônio e P/L (RF-005 P2) e o botão de cancelar (RF-012; a rota `DELETE /ordens/:id` já
-    existe, §6). O `LIVRO` é ignorado pelo reducer por enquanto: basta guardá-lo por ativo. As
-    melhores ofertas do RF-006 são o primeiro nível de cada lado do livro.
+  - **P2 também feita pelo Dev 1** (PR `feat/web-p2`): livro do ativo selecionado (RF-007; clicar
+    num nível usa o preço na ordem), botão de cancelar nas ordens abertas e parciais (RF-012),
+    "Meus negócios" a partir do `GET /historico` (RF-008) e patrimônio e P/L na carteira
+    (RF-005). A carteira e o histórico não chegam por evento: são buscados de novo depois de
+    `ORDEM_ATUALIZADA`/`PRECO`, **no máximo uma vez a cada 500 ms** (`useAgendada`). Sem esse
+    limite, 50 Home Brokers com ~100 negócios/s gerariam milhares de requisições por segundo.
 - O Gateway agora aceita CORS de qualquer origem (`main.ts`). É seguro porque a sessão é um JWT no
   header, não cookie.
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o

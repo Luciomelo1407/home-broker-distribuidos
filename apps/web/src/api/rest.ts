@@ -3,6 +3,7 @@ import type {
   AuthLoginRespostaDto,
   CarteiraRespostaDto,
   CriarOrdemRequisicaoDto,
+  HistoricoRespostaDto,
   MercadoRespostaDto,
   OrdemRespostaDto,
   RespostaErroDto,
@@ -66,4 +67,7 @@ export const api = {
   mercado: () => chamar<MercadoRespostaDto>('/mercado'),
   enviarOrdem: (token: string, ordem: CriarOrdemRequisicaoDto) =>
     chamar<OrdemRespostaDto>('/ordens', { method: 'POST', body: JSON.stringify(ordem), token }),
+  cancelarOrdem: (token: string, id: number) =>
+    chamar<OrdemRespostaDto>(`/ordens/${id}`, { method: 'DELETE', token }),
+  historico: (token: string) => chamar<HistoricoRespostaDto>('/historico', { token }),
 };

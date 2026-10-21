@@ -4,11 +4,12 @@ import { formatarDinheiro, formatarQuantidade, formatarVariacao } from '../lib/f
 interface Props {
   mercado: AtivoMercadoDto[];
   nomes: Record<string, string>;
+  selecionado?: string;
   aoEscolher: (ativo: AtivoMercadoDto) => void;
 }
 
-/** RF-006: preço atual, variação desde o início e volume, iguais para todos. */
-export function Mercado({ mercado, nomes, aoEscolher }: Props) {
+/** RF-006: preço atual, variação desde o início e volume, iguais para todos. Clicar seleciona o livro. */
+export function Mercado({ mercado, nomes, selecionado, aoEscolher }: Props) {
   return (
     <section className="cartao">
       <h2>Mercado</h2>
@@ -25,9 +26,9 @@ export function Mercado({ mercado, nomes, aoEscolher }: Props) {
           {mercado.map((a) => (
             <tr
               key={a.ativo}
-              className="clicavel"
+              className={`clicavel ${a.ativo === selecionado ? 'selecionado' : ''}`}
               onClick={() => aoEscolher(a)}
-              title="Usar na ordem"
+              title="Ver o livro e usar na ordem"
             >
               <td>
                 <strong>{a.ativo}</strong>
