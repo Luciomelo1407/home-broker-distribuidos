@@ -142,3 +142,41 @@ export type EventoMercado =
         mensagem: string;
       };
     };
+
+// Mensagens do Redis entre Gateway e Motor (schemas comando-ordem e resultado-ordem).
+
+export type ComandoOrdem =
+  | {
+      tipo: 'CRIAR';
+      clientOrderId: string;
+      investidorId: number;
+      ativo: string;
+      lado: LadoOrdem;
+      quantidade: number;
+      preco: string;
+    }
+  | {
+      tipo: 'CANCELAR';
+      clientOrderId: string;
+      investidorId: number;
+      ordemId: number;
+    };
+
+export interface NegocioDto {
+  id: number;
+  ativo: string;
+  preco: string;
+  quantidade: number;
+  momento: string;
+}
+
+export interface ResultadoOrdem {
+  clientOrderId: string;
+  investidorId: number;
+  /** null só quando o comando foi recusado sem ordem para mostrar (aí há motivoRejeicao). */
+  ordem: OrdemRespostaDto | null;
+  motivoRejeicao?: MotivoRejeicao;
+  ordensAtualizadas: OrdemRespostaDto[];
+  negocios: NegocioDto[];
+  mercado: AtivoMercadoDto[];
+}

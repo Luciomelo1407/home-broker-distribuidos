@@ -2,6 +2,7 @@
  * Códigos de erro da API REST (arquitetura §4.2).
  * ACESSO_NEGADO, NAO_ENCONTRADO e REQUISICAO_INVALIDA não estão na tabela da arquitetura:
  * cobrem exceções que o próprio Nest lança (rota inexistente, corpo grande demais…).
+ * ORDEM_NAO_CANCELAVEL (409) também não: é o DELETE /ordens/:id de uma ordem já encerrada.
  */
 export const CodigoErro = {
   VALIDACAO: 'VALIDACAO',
@@ -15,6 +16,7 @@ export const CodigoErro = {
   ACESSO_NEGADO: 'ACESSO_NEGADO',
   NAO_ENCONTRADO: 'NAO_ENCONTRADO',
   REQUISICAO_INVALIDA: 'REQUISICAO_INVALIDA',
+  ORDEM_NAO_CANCELAVEL: 'ORDEM_NAO_CANCELAVEL',
 } as const;
 
 export type CodigoErro = (typeof CodigoErro)[keyof typeof CodigoErro];

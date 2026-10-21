@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bolsa.distribuidos.ufs.br/schemas/comando-ordem.json",
+  "title": "ComandoOrdem",
+  "description": "Comando que o Gateway põe no stream \"orders\" (campo \"payload\") e o Motor consome (plano §3.1). O investidorId vem sempre do JWT.",
+  "oneOf": [{ "$ref": "#/definitions/ComandoCriar" }, { "$ref": "#/definitions/ComandoCancelar" }],
+  "definitions": {
+    "PrecoPositivo": {
+      "description": "Decimal maior que zero, até 13 dígitos inteiros e 2 casas (decimal(15,2)).",
+      "type": "string",
+      "pattern": "^(?!0+(\\.0{1,2})?$)[0-9]{1,13}(\\.[0-9]{1,2})?$"
+    },
+    "UuidString": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "InvestidorId": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+    "ComandoCriar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "clientOrderId", "investidorId", "ativo", "lado", "quantidade", "preco"],
+      "properties": {
+        "tipo": { "const": "CRIAR" },
+        "clientOrderId": { "$ref": "#/definitions/UuidString" },
+        "investidorId": { "$ref": "#/definitions/InvestidorId" },
+        "ativo": { "type": "string", "pattern": "^[A-Z]{3,4}[0-9]{1,2}$" },
+        "lado": { "enum": ["COMPRA", "VENDA"] },
+        "quantidade": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "preco": { "$ref": "#/definitions/PrecoPositivo" }
+      }
+    },
+    "ComandoCancelar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tipo", "clientOrderId", "investidorId", "ordemId"],
+      "properties": {
+        "tipo": { "const": "CANCELAR" },
+        "clientOrderId": { "$ref": "#/definitions/UuidString" },
+        "investidorId": { "$ref": "#/definitions/InvestidorId" },
+        "ordemId": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

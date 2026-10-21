@@ -50,7 +50,8 @@
                 "ERRO_INTERNO",
                 "ACESSO_NEGADO",
                 "NAO_ENCONTRADO",
-                "REQUISICAO_INVALIDA"
+                "REQUISICAO_INVALIDA",
+                "ORDEM_NAO_CANCELAVEL"
               ]
             },
             "mensagem": { "type": "string" },

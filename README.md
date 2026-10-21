@@ -3,127 +3,60 @@
 Trabalho de Sistemas Distribuídos (UFS). Os documentos de requisitos, arquitetura, modelo de dados e o
 plano de implementação estão em [`docs/`](docs/).
 
-## Próximos passos — 02/10/2026
+## Situação em 21/10/2026 (Parte 1)
 
-> Seção temporária. Sai do README quando o Dia 0 de todos estiver fechado (critério no fim desta seção).
-> O plano completo está em [`docs/plano-de-implementacao.md`](docs/plano-de-implementacao.md): papéis na §2,
-> Dia 0 na §3 e tarefas por semana na §4.
+> Seção temporária: sai do README quando os PRs abaixo estiverem na `main`. As decisões de integração
+> e o impacto em cada dev estão em [`docs/integracao.md`](docs/integracao.md). **Leia antes de
+> continuar o seu módulo**, porque parte dele pode já existir.
 
-**Onde estamos:** o Dev 1 já entregou o esqueleto do monorepo, o compose e o banco com as migrações (na `main`),
-e a base do Gateway (`config`, `common` e `database`, PR #1), também já na `main`. Ainda faltam os
-contratos v0 (`packages/contracts`, Dev 2 e Dev 4) e o domínio do Motor (Dev 3). **Amanhã é o Dia 0 de quem
-ainda não começou.**
+**O fluxo da Parte 1 (CA-01) funciona de ponta a ponta:** `docker compose up --build` sobe Postgres,
+Redis, Motor, Gateway e Home Broker. Dois navegadores fazem cadastro e login, veem os ativos, enviam
+ordens, e as duas telas se atualizam ao vivo com o negócio (testado em 21/10). O casamento já é o
+real do domínio do Dev 3, não só "gravar ABERTA".
 
-### Todos, antes de programar
+### PRs para revisar, nesta ordem
 
-1. **Escolher o papel** (Dev 2, 3 ou 4) no grupo. O Dev 1 já está definido.
-2. **Preparar a máquina:** instale os [pré-requisitos](#pré-requisitos) e rode:
+Os branches estão empilhados: cada um parte do anterior. Abra cada PR com a **base no branch
+anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 
-   ```bash
-   git clone git@github.com:Luciomelo1407/home-broker-distribuidos.git simulador-bolsa
-   cd simulador-bolsa
-   cp .env.example .env
-   docker compose up --build   # espere "engine-1 | migrações aplicadas"
-   pnpm install && pnpm -r test
-   cargo test
-   ```
+| #   | Branch                             | O quê                                                   | Revisor sugerido  |
+| --- | ---------------------------------- | ------------------------------------------------------- | ----------------- |
+| 1   | `feat/ci`                          | GitHub Actions (lint, Prettier, testes TS e Rust, e2e)  | Dev 4             |
+| 2   | `feat/gateway-observability`       | pino com redact, `LOG_LEVEL`                            | Dev 4             |
+| 3   | `feat/gateway-mercado`             | `GET /mercado`, snapshot em memória                     | Dev 4             |
+| 4   | `feat/gateway-ordens`              | `POST /ordens`, DTO, T-13, `@UsuarioAtual`              | Dev 4             |
+| 5   | `feat/contracts-comando-resultado` | schemas do Redis, structs Rust, T-14 nos dois lados     | **Dev 2** + Dev 4 |
+| 6   | `feat/engine-casca`                | casca do Motor: stream, store, processor, T-07/08/09/11 | **Dev 2** + Dev 3 |
+| 7   | `feat/gateway-bus`                 | `gateway/bus`: XADD e espera do resultado               | **Dev 2**         |
+| 8   | `feat/gateway-auth`                | cadastro, login, argon2id, JWT, T-12                    | **Dev 4**         |
+| 9   | `feat/gateway-carteira`            | `GET /carteira` (P1)                                    | **Dev 4**         |
+| 10  | `feat/gateway-realtime`            | WebSocket: SNAPSHOT, presença, eventos                  | Dev 2             |
+| 11  | `feat/gateway-docker`              | Dockerfile do Gateway e serviço no compose              | Dev 2             |
+| 12  | `feat/web-p1`                      | Home Broker P1 (login, cadastro, painel)                | **Dev 4**         |
+| 13  | `docs/readme-21-10`                | esta seção                                              | qualquer um       |
 
-   Se algo falhar aqui, avise o Dev 1 antes de seguir.
+Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
+tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
+decidido em nome de cada um.
 
-3. **Reunião de 1h com os quatro**, com a pauta fechada da §3.1 do plano. Só se decide o que faria duas pessoas
-   escreverem coisas incompatíveis:
-   - campos dos comandos `CRIAR` e `CANCELAR` no stream `orders`;
-   - formato do resultado da ordem;
-   - tipos de evento de mercado;
-   - nomes no Redis (stream, grupo, canais, chaves de presença e de heartbeat);
-   - rotas REST da P1;
-   - assinatura do domínio (o que a casca do Motor entrega ao núcleo e o que recebe de volta).
+### Mudanças que afetam todo mundo
 
-   Anote as decisões no PR de contratos. Elas valem para todo mundo.
+- **Node 24.9 ou mais novo.** No Node 22, os testes do Gateway quebram ("Must use import to load ES
+  Module").
+- **`cp .env.example .env` de novo** (ou acrescente `LOG_LEVEL=info`): sem `LOG_LEVEL`, o Gateway não
+  sobe.
+- Os e2e e a integração do Motor escrevem no banco do compose. **Antes de uma demo:
+  `docker compose down -v`.**
 
-4. **Como trabalhar no repositório** (arquitetura §3.4):
-   - um branch por tarefa (`feat/engine-livro`, `feat/contracts-comando`…) e nada direto na `main`;
-   - commits no formato `tipo(escopo): descrição`, em português, feitos por quem escreveu o código. A avaliação
-     olha a autoria;
-   - PR revisado pelo par: **Dev 2 ⇄ Dev 3** (Rust) e **Dev 1 ⇄ Dev 4** (TS). PR em `packages/contracts` precisa
-     de alguém da outra linguagem;
-   - antes de abrir o PR, rode `pnpm lint && pnpm format:check && pnpm -r test` e/ou
-     `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`.
+### O que falta (próximo ponto: F2, ~04/11)
 
-### Dev 1 — Plataforma + Gateway
-
-1. **CI mínimo** no GitHub Actions: lint, Prettier e testes de TS, mais `cargo fmt`, `clippy` e `cargo test`.
-2. `gateway/observability`: logger pino com `redact` (`authorization`, `*.senha`, `*.token`), usando o
-   `x-request-id` que o `common` já gera.
-3. Revisar os PRs de contratos e atualizar este README quando eles entrarem.
-4. Em seguida, `gateway/ordens` (`POST /ordens`, DTOs e espera de 3 s) até o **T-13**. Enquanto o `gateway/bus`
-   do Dev 2 não existir, o resultado é simulado com `redis-cli PUBLISH` usando uma fixture.
-
-### Dev 2 — Fila e casca do Motor (Rust + `gateway/bus` em TS)
-
-1. **Contratos do lado do Motor:** JSON Schemas `comando-ordem` e `resultado-ordem` em
-   `packages/contracts/schemas/`, com exemplos em `fixtures/validas/` e `fixtures/invalidas/`.
-2. **Structs serde** que espelham esses schemas em `apps/engine/src/contract/`, com
-   `#[serde(rename_all = "camelCase")]`. Dinheiro é string decimal no JSON e `rust_decimal::Decimal` no Rust.
-3. **Lado Rust do T-14:** um `cargo test` que lê as fixtures e confere que as válidas são aceitas e as inválidas
-   recusadas.
-4. Depois: a casca do Motor (`config.rs` e o consumidor do stream em `bus/`). Para testar sem o Gateway, envie
-   comandos com `redis-cli XADD orders '*' ...` usando as fixtures.
-
-Cuidados:
-
-- O `main.rs` é seu. Mantenha o `sqlx::migrate!` no começo dele.
-- No compose, o `engine` continua com `restart: "no"` até existir o laço principal. Só então troque para
-  `unless-stopped`.
-- Vocês dois mexem no `apps/engine/Cargo.toml`. Combine com o Dev 3 para não brigarem nas dependências.
-
-### Dev 3 — Núcleo do Motor (Rust puro)
-
-1. Crie `apps/engine/src/lib.rs` com `pub mod domain;`. **Não mexa no `main.rs`**, que é do Dev 2.
-2. Comece por `domain/dinheiro.rs`: `Preco`, `Dinheiro` (`rust_decimal::Decimal`, 2 casas) e `Quantidade`. Os
-   construtores recusam valores ≤ 0.
-3. Depois `domain/ordem.rs` (`Ordem`, `Lado`, `StatusOrdem`) e o início de `domain/livro.rs` (por lado,
-   `BTreeMap<Preco, VecDeque<Ordem>>`, desempate por `id`).
-4. Escreva testes unitários desde o primeiro arquivo. O alvo é ≥ 90% de cobertura no `domain`.
-
-Regras do `domain/` (arquitetura §3.3):
-
-- proibido `async`, `sqlx`, `redis`, `tokio` e `Utc::now()`; o horário, quando precisar, entra como parâmetro;
-- sem `unwrap()`/`expect()` (o clippy já barra);
-- toda função pública tem comentário de documentação e cita o requisito que implementa (`// RF-015: ...`).
-
-Você não depende de ninguém. Se o repositório travar por qualquer motivo, continue num crate local e traga
-o código depois.
-
-### Dev 4 — Autenticação + Home Broker
-
-1. **Primeira coisa do dia: e-mail ao professor**, com cópia para o grupo:
-   - SD-02/AP-04: bibliotecas contam como "código de terceiros"? Uma resposta negativa obriga a replanejar
-     a stack, por isso é urgente;
-   - Q-01: nomes e matrículas dos integrantes (prazo 07/10);
-   - Q-02: confirmação dos valores iniciais (3 ativos, R$ 100.000 e 1.000 ações).
-2. **Contratos do lado da tela:** JSON Schemas `evento-mercado` (`SNAPSHOT`, `ORDEM_ATUALIZADA`, `NEGOCIO`,
-   `PRECO`, `LIVRO`, `PRESENCA`, `ERRO`) e `api-rest` (rotas da P1 e formato de erro), com fixtures.
-   O `api-rest` precisa incluir os códigos de erro que o Gateway já usa, que estão em
-   `apps/gateway/src/common/app-error.ts`.
-3. Em `packages/contracts/src/`: `dinheiro.ts` (conversão string ⇄ centavos inteiros, nunca `number` com
-   decimais), as constantes de `stage` do RF-025 e o lado TS do **T-14** (Vitest + ajv lendo as fixtures).
-4. **Ler a base do Gateway** (`apps/gateway/src/{config,common,database}`), que é a base do seu `auth`.
-   O PR #1 entrou sem revisão; comentários e pedidos de ajuste são bem-vindos numa issue ou num PR.
-5. Em seguida, **`gateway/auth` + seed**, até ~08/10, porque todo mundo depende do login: cadastro, login,
-   argon2, JWT e guard para REST e WebSocket, até o **T-12**. Use o que já existe:
-   - `DatabaseService.transacao()` para criar o investidor e as posições iniciais juntos;
-   - `AppError` com `USUARIO_JA_EXISTE`, `CREDENCIAIS_INVALIDAS` e `NAO_AUTENTICADO`;
-   - `config.get('JWT_SECRET', { infer: true })` e as demais variáveis, que já são validadas ao subir;
-   - o decorator `@UsuarioAtual` ainda não existe. Ele fica em `common/`, mas o formato do JWT é decisão sua.
-
-### Critério de "Dia 0 fechado"
-
-- `packages/contracts` v0 integrado na `main`, com schemas, fixtures e o T-14 passando em TS e em Rust;
-- tipos do domínio com testes na `main` (ou em PR);
-- e-mail ao professor enviado.
-
-A partir daí ninguém precisa esperar ninguém até o **ponto de controle de 10/10** (plano §3.3).
+| Dono  | Pendência                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------- |
+| Dev 1 | esqueleto do k6 (M5), `mercado` P2 (melhores ofertas, top-5 do livro), métricas do Gateway   |
+| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05  |
+| Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                      |
+| Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) no `web` |
+| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)       |
 
 ## Pré-requisitos
 
@@ -147,9 +80,27 @@ Na primeira subida:
 
 1. O **Postgres 16** cria o banco `bolsa` e roda `db/init/`, que cria os papéis `engine_app` e `gateway_app`.
 2. O **Redis 7** sobe.
-3. O **Motor** (`engine`) espera o Postgres ficar saudável, aplica as migrações de `db/migrations/` e
-   **sai com código 0**. Por enquanto é só isso que ele faz. A linha `engine-1 | migrações aplicadas`
-   no log confirma que deu certo.
+3. O **Motor** (`engine`) espera o Postgres ficar saudável, aplica as migrações de `db/migrations/`,
+   reconstrói o livro a partir das ordens abertas e passa a consumir o stream `orders`. A linha
+   `"Motor pronto"` no log confirma que deu certo. Os nomes no Redis e o formato das mensagens estão
+   em [`docs/integracao.md`](docs/integracao.md).
+4. O **Gateway** sobe na porta `GATEWAY_PORT` (3001): REST (`/auth/*`, `/ordens`, `/mercado`,
+   `/carteira`) e WebSocket (`/ws?token=<jwt>`). Se subir antes de o Motor terminar as migrações
+   num banco novo, ele sai com erro e o Docker o sobe de novo em seguida.
+5. O **Home Broker** (`web`) fica em `http://localhost:WEB_PORT` (3000). De outra máquina, use
+   `http://<ip-da-máquina>:3000`: ele fala com o Gateway no mesmo host, porta 3001.
+
+Para testar o fluxo inteiro com `curl`:
+
+```bash
+curl -s localhost:3001/auth/cadastro -H 'content-type: application/json' \
+  -d '{"nomeUsuario":"ana","senha":"senha-123"}'
+TOKEN=$(curl -s localhost:3001/auth/login -H 'content-type: application/json' \
+  -d '{"nomeUsuario":"ana","senha":"senha-123"}' | sed 's/.*"token":"\([^"]*\)".*/\1/')
+curl -s localhost:3001/ordens -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d "{\"clientOrderId\":\"$(uuidgen)\",\"ativo\":\"ABC3\",\"lado\":\"COMPRA\",\"quantidade\":10,\"preco\":\"25.00\"}"
+curl -s localhost:3001/carteira -H "authorization: Bearer $TOKEN"
+```
 
 Para conferir o banco:
 
@@ -173,18 +124,20 @@ Postgres e Redis ficam publicados **só em `127.0.0.1`** (portas `POSTGRES_PORT`
 Com o compose de pé, dá para rodar qualquer app na máquina:
 
 ```bash
-# Motor: aplica as migrações no banco do compose
-DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo run -p engine
+# Motor (pare o do compose antes: docker compose stop engine; o escritor é único)
+DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa REDIS_URL=redis://localhost:6379 \
+  ORDEM_TIMEOUT_MS=3000 cargo run -p engine
 
-# Gateway (porta GATEWAY_PORT; lê o .env da raiz e não sobe se faltar variável ou banco)
+# Gateway (pare o do compose antes, por causa da porta: docker compose stop gateway)
 pnpm install
 pnpm --filter @bolsa/gateway start:dev
 
 # Home Broker
 pnpm --filter @bolsa/web dev
 
-# Redis: enviar um comando de teste ao stream (plano §3.3)
-docker compose exec redis redis-cli XADD orders '*' payload '{...}'
+# Redis: enviar um comando de teste ao stream e ver o resultado (docs/integracao.md)
+docker compose exec redis redis-cli SUBSCRIBE ordens.resultado   # em outro terminal
+docker compose exec -T redis redis-cli XADD orders '*' payload "$(cat packages/contracts/fixtures/validas/comando-criar.json)"
 ```
 
 ## Testes e padronização
@@ -202,6 +155,9 @@ pnpm --filter @bolsa/gateway test:e2e
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
+# integração do Motor (T-07, T-08, T-09, T-11) contra o Postgres do compose,
+# com o Motor do compose parado (o teste é um segundo escritor): docker compose stop engine
+TEST_DATABASE_URL=postgres://engine_app:engine_dev@localhost:5432/bolsa cargo test -p engine --test processor
 ```
 
 ## Estrutura

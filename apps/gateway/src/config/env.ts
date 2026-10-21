@@ -1,5 +1,6 @@
 import { plainToInstance, Transform } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsString,
@@ -16,6 +17,8 @@ const ParaInteiro = () =>
   Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() !== '' ? Number(value) : value,
   );
+
+const NIVEIS_DE_LOG = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'] as const;
 
 /**
  * Variáveis que o Gateway exige para subir (arquitetura §3.3, regra 9).
@@ -37,6 +40,10 @@ export class Env {
   @IsString()
   @MinLength(16, { message: 'deve ter pelo menos 16 caracteres' })
   JWT_SECRET!: string;
+
+  // Nível mínimo do pino (arquitetura §4.3): debug fica desligado na demo e na carga
+  @IsIn(NIVEIS_DE_LOG, { message: `deve ser um de: ${NIVEIS_DE_LOG.join(', ')}` })
+  LOG_LEVEL!: (typeof NIVEIS_DE_LOG)[number];
 
   // SD-04: validade do token, no formato aceito pela biblioteca de JWT (ex.: 8h, 30m)
   @IsString()

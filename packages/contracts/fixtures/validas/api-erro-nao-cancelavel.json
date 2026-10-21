@@ -1,0 +1,7 @@
+{
+  "erro": {
+    "codigo": "ORDEM_NAO_CANCELAVEL",
+    "mensagem": "a ordem já foi executada ou cancelada"
+  },
+  "requestId": "0e8b4ec8-418a-4f5e-866d-ae86dbd9bac7"
+}

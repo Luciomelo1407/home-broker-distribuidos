@@ -1,0 +1,10 @@
+{
+  "tipo": "CRIAR",
+  "clientOrderId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "investidorId": 1,
+  "ativo": "ABC3",
+  "lado": "COMPRA",
+  "quantidade": 100,
+  "preco": "25.50",
+  "userId": 2
+}
