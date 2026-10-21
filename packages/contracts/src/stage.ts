@@ -1,4 +1,3 @@
-
 // Estágios de uma ordem.
 export const StageOrdem = {
   ORDER_RECEIVED: 'ORDER_RECEIVED',

@@ -130,7 +130,7 @@ A partir daí ninguém precisa esperar ninguém até o **ponto de controle de 10
 | Ferramenta              | Versão               | Para quê                                                                    |
 | ----------------------- | -------------------- | --------------------------------------------------------------------------- |
 | Docker + Docker Compose | Compose v2           | Subir Postgres, Redis e os serviços                                         |
-| Node.js                 | 22 ou mais recente   | Apps TypeScript                                                             |
+| Node.js                 | 24.9 ou mais recente | Apps TypeScript (o Jest só carrega o Nest 12, que é ESM, a partir do 24.9)  |
 | pnpm                    | 10                   | Workspace TypeScript (`corepack enable` instala a versão do `package.json`) |
 | Rust                    | 1.94 ou mais recente | Motor de Negociação                                                         |
 
@@ -188,6 +188,8 @@ docker compose exec redis redis-cli XADD orders '*' payload '{...}'
 ```
 
 ## Testes e padronização
+
+O CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) roda tudo isto em cada PR e na `main`.
 
 ```bash
 pnpm install
