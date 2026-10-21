@@ -114,10 +114,13 @@
   não fechava sem login: cadastro (investidor + posições numa transação), login, argon2id, JWT e o
   guard (§4). Revise o PR; daqui em diante o módulo é seu. **Falta o seed dos agentes**
   (`database/seed`, AP-05), que depende do número e das senhas dos agentes.
+- **O `GET /carteira` P1 também foi escrito pelo Dev 1** (PR `feat/gateway-carteira`), porque o
+  `SNAPSHOT` do WebSocket usa as mesmas consultas (`carteira.queries.ts`: `buscarCarteira` e
+  `listarOrdensAbertas`). Faltam a parte P2 (patrimônio, P/L) e o histórico (RF-008).
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o
   tamanho; se quiser a mesma regra no contrato, acrescente o `pattern` lá.
-- `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: arredonde
-  no SQL do `carteira` (`round(preco_medio, 2)::text`).
+- `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: o
+  `carteira` já arredonda no SQL (`round(preco_medio, 2)::text`).
 - Na tela, o saldo não chega por evento: quando receber `ORDEM_ATUALIZADA`, busque `GET /carteira`.
 - **Decisão pendente (grupo):** as posições iniciais do cadastro ficam com `preco_medio = 0`, porque
   o `gateway_app` só pode inserir `investidor_id`, `ativo_id` e `quantidade_disponivel`. A primeira

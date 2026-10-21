@@ -65,6 +65,12 @@ describe('POST /ordens com o Motor real', () => {
       .set('authorization', `Bearer ${token}`)
       .send(corpo);
     expect(reenvio.body.id).toBe(res.body.id);
+
+    // RF-009: a compra reservou 10 × 1,00, uma vez só
+    const carteira = await request(app.getHttpServer())
+      .get('/carteira')
+      .set('authorization', `Bearer ${token}`);
+    expect(carteira.body).toMatchObject({ saldoDisponivel: '99990.00', saldoReservado: '10.00' });
   });
 
   it('devolve a ordem REJEITADA com o motivo quando falta saldo', async () => {

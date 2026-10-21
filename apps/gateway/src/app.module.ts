@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { BusModule } from './bus/bus.module';
+import { CarteiraModule } from './carteira/carteira.module';
 import { CommonModule } from './common/common.module';
 import { AppConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
@@ -20,6 +21,7 @@ import { OrdensModule } from './ordens/ordens.module';
     AuthModule,
     MercadoModule,
     OrdensModule,
+    CarteiraModule,
   ],
 })
 export class AppModule {}
