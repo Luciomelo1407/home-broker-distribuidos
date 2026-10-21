@@ -46,7 +46,11 @@ fn uuid() -> String {
 
 /// Investidor novo com R$ 100.000 e 1.000 ações de cada ativo (S-01).
 async fn investidor(pool: &PgPool) -> i32 {
-    let nome = format!("t-{}-{}", agora_ms(), SEQUENCIA.fetch_add(1, Ordering::Relaxed));
+    let nome = format!(
+        "t-{}-{}",
+        agora_ms(),
+        SEQUENCIA.fetch_add(1, Ordering::Relaxed)
+    );
     let id: i32 = sqlx::query_scalar(
         "INSERT INTO investidores (nome_usuario, senha_hash, saldo_disponivel)
          VALUES ($1, 'x', 100000.00) RETURNING id",
@@ -131,7 +135,28 @@ async fn processor_contra_postgres() {
     t09_comando_vencido_e_descartado(&pool, &mut p).await;
     t11_cancelar_parcial_devolve_a_reserva_restante(&pool, &mut p).await;
     cancelar_ordem_de_outro_nao_revela_nada(&pool, &mut p).await;
+    investidor_inexistente_e_descartado(&mut p).await;
     t07_livro_reconstruido_igual(&pool, &p).await;
+}
+
+async fn investidor_inexistente_e_descartado(p: &mut Processador) {
+    let id = stream_id(agora_ms());
+    let comando = criar(&uuid(), i32::MAX, "ABC3", "COMPRA", 1, "1.00");
+
+    let resultado = p
+        .processar(
+            &Entrada {
+                stream_id: &id,
+                payload: Some(&comando),
+            },
+            agora_ms(),
+        )
+        .await;
+
+    assert!(
+        matches!(resultado, Ok(None)),
+        "deveria descartar sem parar o Motor"
+    );
 }
 
 async fn t08_comando_repetido_gera_uma_ordem(pool: &PgPool, p: &mut Processador) {

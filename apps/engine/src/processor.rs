@@ -110,6 +110,19 @@ impl Processador {
         let expirado = chegada_ms(stream_id)
             .is_some_and(|chegada| agora_ms.saturating_sub(chegada) > self.ordem_timeout_ms);
 
+        // Investidor que não existe (bug do emissor): descartar, como um payload inválido.
+        // Parar o Motor aqui o deixaria reiniciando para sempre na mesma entrada pendente.
+        if let ComandoOrdem::Criar { .. } = comando
+            && !self.carregar_conta(investidor_id).await?
+        {
+            error!(
+                streamId = stream_id,
+                userId = investidor_id,
+                "comando de investidor inexistente descartado"
+            );
+            return Ok(None);
+        }
+
         let resultado = match &comando {
             ComandoOrdem::Criar { .. } => self.criar(&comando, stream_id, expirado).await?,
             ComandoOrdem::Cancelar { ordem_id, .. } => {
@@ -117,6 +130,19 @@ impl Processador {
             }
         };
         Ok(Some(resultado))
+    }
+
+    /// Garante a conta do investidor em memória, lendo do banco se ele é novo.
+    /// `false` se o investidor não existe.
+    async fn carregar_conta(&mut self, investidor_id: i32) -> Result<bool, ErroStore> {
+        if self.estado.contas.contains_key(&investidor_id) {
+            return Ok(true);
+        }
+        let Some(conta) = store::carregar_conta(&self.pool, investidor_id).await? else {
+            return Ok(false);
+        };
+        self.estado.contas.insert(investidor_id, conta);
+        Ok(true)
     }
 
     async fn criar(
@@ -156,22 +182,6 @@ impl Processador {
                 Some(MotivoRejeicao::AtivoInexistente),
             ));
         };
-        if !self.estado.contas.contains_key(&investidor_id) {
-            match store::carregar_conta(&self.pool, investidor_id).await? {
-                Some(conta) => {
-                    self.estado.contas.insert(investidor_id, conta);
-                }
-                None => {
-                    // O JWT é do Gateway; um investidor inexistente aqui é bug, não regra
-                    error!(
-                        userId = investidor_id,
-                        "comando de investidor inexistente descartado"
-                    );
-                    return Err(invariante(Rejeicao::EstadoInvalido, comando));
-                }
-            }
-        }
-
         // O contrato já validou preço e quantidade; falhar aqui seria bug do contrato
         let preco = decimal(preco)
             .and_then(|valor| Preco::novo(valor).ok())
