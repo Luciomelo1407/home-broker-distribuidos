@@ -84,4 +84,41 @@ describe('POST /ordens com o Motor real', () => {
     expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ status: 'REJEITADA', motivoRejeicao: 'SALDO_INSUFICIENTE' });
   });
+
+  it('T-10 e RF-012: só o dono consulta e cancela, e o cancelamento devolve a reserva', async () => {
+    const [tokenA, tokenB] = await Promise.all([investidorLogado(), investidorLogado()]);
+    const http = () => request(app.getHttpServer());
+    const criada = await http()
+      .post('/ordens')
+      .set('authorization', `Bearer ${tokenA}`)
+      .send(ordem('COMPRA', 10, '1.00'))
+      .expect(201);
+    const caminho = `/ordens/${criada.body.id}`;
+
+    // B não vê, não cancela e não consegue se passar por A no corpo (RNF-08)
+    // Uma requisição por vez: o supertest abre e fecha o servidor a cada uma
+    for (const metodo of ['get', 'delete'] as const) {
+      const res = await http()[metodo](caminho).set('authorization', `Bearer ${tokenB}`);
+      expect(res.status).toBe(403);
+      expect(res.body.erro.codigo).toBe('ORDEM_DE_OUTRO_INVESTIDOR');
+    }
+    const comoA = await http()
+      .post('/ordens')
+      .set('authorization', `Bearer ${tokenB}`)
+      .send({ ...ordem('COMPRA', 1, '1.00'), investidorId: criada.body.investidorId });
+    expect(comoA.status).toBe(400);
+
+    const consulta = await http().get(caminho).set('authorization', `Bearer ${tokenA}`);
+    expect(consulta.body).toMatchObject({ id: criada.body.id, status: 'ABERTA' });
+
+    const cancelada = await http().delete(caminho).set('authorization', `Bearer ${tokenA}`);
+    expect(cancelada.status).toBe(200);
+    expect(cancelada.body).toMatchObject({ id: criada.body.id, status: 'CANCELADA' });
+    const carteira = await http().get('/carteira').set('authorization', `Bearer ${tokenA}`);
+    expect(carteira.body).toMatchObject({ saldoDisponivel: '100000.00', saldoReservado: '0.00' });
+
+    const deNovo = await http().delete(caminho).set('authorization', `Bearer ${tokenA}`);
+    expect(deNovo.status).toBe(409);
+    expect(deNovo.body.erro.codigo).toBe('ORDEM_NAO_CANCELAVEL');
+  });
 });

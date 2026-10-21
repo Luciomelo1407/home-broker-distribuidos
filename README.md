@@ -50,13 +50,13 @@ decidido em nome de cada um.
 
 ### O que falta (próximo ponto: F2, ~04/11)
 
-| Dono  | Pendência                                                                                        |
-| ----- | ------------------------------------------------------------------------------------------------ |
-| Dev 1 | `GET /ordens/:id` (RF-011), `DELETE /ordens` (RF-012, o Motor já cancela), T-10, esqueleto do k6 |
-| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05      |
-| Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                          |
-| Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) no `web`     |
-| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)           |
+| Dono  | Pendência                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------- |
+| Dev 1 | esqueleto do k6 (M5), `mercado` P2 (melhores ofertas, top-5 do livro), métricas do Gateway   |
+| Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05  |
+| Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                      |
+| Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) no `web` |
+| Grupo | preço médio inicial das ações do cadastro (hoje 0; ver `docs/integracao.md` §7, Dev 4)       |
 
 ## Pré-requisitos
 

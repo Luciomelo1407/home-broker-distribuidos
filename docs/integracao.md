@@ -81,6 +81,19 @@
 - O `ordens` não fala com o Redis. Ele chama `BarramentoDeOrdens.enviarEAguardar(comando, timeoutMs)`,
   que o `gateway/bus` implementa. Timeout → `ComandoNaoConfirmado` (504); `XADD` falhou →
   `BarramentoIndisponivel` (503).
+- `GET /ordens/:id` (RF-011) lê do banco. `DELETE /ordens/:id` (RF-012) confere a posse no banco e
+  manda `CANCELAR` ao Motor, com um `clientOrderId` gerado no Gateway. Respostas:
+
+  | Situação                                | HTTP | `codigo`                    |
+  | --------------------------------------- | ---- | --------------------------- |
+  | Cancelada (corpo = a ordem `CANCELADA`) | 200  | —                           |
+  | Ordem de outro investidor               | 403  | `ORDEM_DE_OUTRO_INVESTIDOR` |
+  | Ordem inexistente                       | 404  | `NAO_ENCONTRADO`            |
+  | Já executada, cancelada ou rejeitada    | 409  | `ORDEM_NAO_CANCELAVEL`      |
+  | Motor não respondeu / comando vencido   | 504  | `NAO_CONFIRMADA`            |
+
+  `ORDEM_NAO_CANCELAVEL` é um código novo: entrou em `common/app-error.ts` e no enum do
+  `api-rest.json`, com fixture, no mesmo PR (regra 3.3.8).
 
 ## 7. Impactos por pessoa
 
@@ -143,7 +156,8 @@
   - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
     duplicar a ordem.
   - Faltam: livro de ofertas (RF-007), histórico (RF-008), patrimônio e P/L (RF-005 P2) e
-    cancelamento (RF-012). O `LIVRO` é ignorado pelo reducer por enquanto.
+    o botão de cancelar (RF-012; a rota `DELETE /ordens/:id` já existe, §6). O `LIVRO` é ignorado
+    pelo reducer por enquanto.
 - O Gateway agora aceita CORS de qualquer origem (`main.ts`). É seguro porque a sessão é um JWT no
   header, não cookie.
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o

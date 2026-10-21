@@ -1,5 +1,15 @@
 import type { OrdemRespostaDto } from '@bolsa/contracts';
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Post,
+} from '@nestjs/common';
 import { UsuarioAtual, type UsuarioAutenticado } from '../common/usuario-atual';
 import { CriarOrdemDto } from './dto/criar-ordem.dto';
 import { OrdensService } from './ordens.service';
@@ -16,5 +26,23 @@ export class OrdensController {
     @Body() dto: CriarOrdemDto,
   ): Promise<OrdemRespostaDto> {
     return this.ordens.criar(usuario, dto);
+  }
+
+  /** RF-011: status de uma ordem própria. */
+  @Get(':id')
+  consultar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<OrdemRespostaDto> {
+    return this.ordens.consultar(usuario, id);
+  }
+
+  /** RF-012: cancela o restante de uma ordem própria e devolve a ordem CANCELADA. */
+  @Delete(':id')
+  cancelar(
+    @UsuarioAtual() usuario: UsuarioAutenticado,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<OrdemRespostaDto> {
+    return this.ordens.cancelar(usuario, id);
   }
 }

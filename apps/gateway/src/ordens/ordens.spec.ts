@@ -1,4 +1,4 @@
-import type { OrdemRespostaDto, ResultadoOrdem } from '@bolsa/contracts';
+import type { ComandoOrdem, OrdemRespostaDto, ResultadoOrdem } from '@bolsa/contracts';
 import { CanActivate, ExecutionContext, Global, INestApplication, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -10,7 +10,6 @@ import { DatabaseService } from '../database/database.service';
 import {
   BarramentoDeOrdens,
   BarramentoIndisponivel,
-  ComandoCriarOrdem,
   ComandoNaoConfirmado,
 } from './barramento-de-ordens';
 import { OrdensModule } from './ordens.module';
@@ -27,14 +26,20 @@ class GuardDeTeste implements CanActivate {
   }
 }
 
-const enviarEAguardar = jest.fn<Promise<ResultadoOrdem>, [ComandoCriarOrdem, number]>();
+const enviarEAguardar = jest.fn<Promise<ResultadoOrdem>, [ComandoOrdem, number]>();
 
 @Global()
 @Module({
   providers: [
     {
       provide: DatabaseService,
-      useValue: { query: async () => ({ rows: [{ codigo: 'ABC3' }, { codigo: 'DEF4' }] }) },
+      // Ativos para a checagem do POST; ordens do banco para GET/DELETE /ordens/:id
+      useValue: {
+        query: async (sql: string, params?: unknown[]) =>
+          sql.includes('FROM ordens')
+            ? { rows: ordensNoBanco.filter((o) => String(o.id) === String(params?.[0])) }
+            : { rows: [{ codigo: 'ABC3' }, { codigo: 'DEF4' }] },
+      },
     },
     { provide: BarramentoDeOrdens, useValue: { enviarEAguardar } },
     { provide: ConfigService, useValue: { get: () => 3000 } },
@@ -43,6 +48,19 @@ const enviarEAguardar = jest.fn<Promise<ResultadoOrdem>, [ComandoCriarOrdem, num
   exports: [DatabaseService, BarramentoDeOrdens, ConfigService],
 })
 class DependenciasFalsas {}
+
+// Ordem 42 é do investidor 7 (o do token nos testes); a 43 é do investidor 8
+const ordensNoBanco: OrdemRespostaDto[] = [42, 43].map((id) => ({
+  id,
+  clientOrderId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
+  investidorId: id === 42 ? 7 : 8,
+  ativo: 'ABC3',
+  lado: 'COMPRA',
+  precoLimite: '25.50',
+  quantidade: 100,
+  quantidadeExecutada: 0,
+  status: 'ABERTA',
+}));
 
 const ordemValida = {
   clientOrderId: '3fa85f64-5717-4562-b3fc-2c963f66afa6',
@@ -63,7 +81,8 @@ function resultado(ordem: OrdemRespostaDto): ResultadoOrdem {
   };
 }
 
-function respostaDoMotor(comando: ComandoCriarOrdem): OrdemRespostaDto {
+function respostaDoMotor(comando: ComandoOrdem): OrdemRespostaDto {
+  if (comando.tipo !== 'CRIAR') throw new Error('o POST só manda CRIAR');
   return {
     id: 42,
     clientOrderId: comando.clientOrderId,
@@ -215,5 +234,87 @@ describe('POST /ordens', () => {
 
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain('senha');
+  });
+});
+
+describe('GET e DELETE /ordens/:id', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    const modulo = await Test.createTestingModule({
+      imports: [DependenciasFalsas, CommonModule, OrdensModule],
+    }).compile();
+    app = modulo.createNestApplication({ logger: false });
+    await app.init();
+  });
+
+  afterAll(() => app.close());
+
+  beforeEach(() => enviarEAguardar.mockReset());
+
+  const como = (metodo: 'get' | 'delete', caminho: string, usuario = '7') =>
+    request(app.getHttpServer())[metodo](caminho).set('x-teste-usuario', usuario);
+
+  it('GET devolve a ordem do próprio investidor (RF-011)', async () => {
+    const res = await como('get', '/ordens/42');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ id: 42, investidorId: 7, status: 'ABERTA' });
+  });
+
+  it.each([
+    ['get', 403, 'ORDEM_DE_OUTRO_INVESTIDOR', '/ordens/43'],
+    ['delete', 403, 'ORDEM_DE_OUTRO_INVESTIDOR', '/ordens/43'],
+    ['get', 404, 'NAO_ENCONTRADO', '/ordens/999'],
+    ['delete', 404, 'NAO_ENCONTRADO', '/ordens/999'],
+    ['get', 400, 'VALIDACAO', '/ordens/abc'],
+  ] as const)(
+    'T-10: %s %s → %i %s, sem falar com o Motor',
+    async (metodo, status, codigo, caminho) => {
+      const res = await como(metodo, caminho);
+
+      expect(res.status).toBe(status);
+      expect(res.body.erro.codigo).toBe(codigo);
+      expect(enviarEAguardar).not.toHaveBeenCalled();
+    },
+  );
+
+  it('DELETE manda CANCELAR com o investidor do token e devolve a ordem cancelada', async () => {
+    const cancelada = { ...(ordensNoBanco[0] as OrdemRespostaDto), status: 'CANCELADA' as const };
+    enviarEAguardar.mockImplementation(async (comando) => ({
+      ...resultado(cancelada),
+      clientOrderId: comando.clientOrderId,
+    }));
+
+    const res = await como('delete', '/ordens/42');
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('CANCELADA');
+    expect(enviarEAguardar).toHaveBeenCalledWith(
+      expect.objectContaining({ tipo: 'CANCELAR', investidorId: 7, ordemId: 42 }),
+      3000,
+    );
+  });
+
+  it.each([
+    ['ORDEM_NAO_CANCELAVEL', 409, 'ORDEM_NAO_CANCELAVEL'],
+    ['ORDEM_DE_OUTRO_INVESTIDOR', 403, 'ORDEM_DE_OUTRO_INVESTIDOR'],
+    ['ORDEM_NAO_ENCONTRADA', 404, 'NAO_ENCONTRADO'],
+    ['COMANDO_EXPIRADO', 504, 'NAO_CONFIRMADA'],
+  ] as const)('DELETE recusado pelo Motor com %s → %i', async (motivo, status, codigo) => {
+    enviarEAguardar.mockImplementation(async (comando) => ({
+      clientOrderId: comando.clientOrderId,
+      investidorId: 7,
+      ordem: motivo === 'ORDEM_NAO_CANCELAVEL' ? (ordensNoBanco[0] as OrdemRespostaDto) : null,
+      motivoRejeicao: motivo,
+      ordensAtualizadas: [],
+      negocios: [],
+      mercado: [],
+    }));
+
+    const res = await como('delete', '/ordens/42');
+
+    expect(res.status).toBe(status);
+    expect(res.body.erro.codigo).toBe(codigo);
   });
 });
