@@ -5,6 +5,7 @@ const envValido = {
   REDIS_URL: 'redis://localhost:6379',
   GATEWAY_PORT: '3001',
   JWT_SECRET: 'troque-este-segredo-em-producao',
+  LOG_LEVEL: 'info',
   JWT_EXPIRACAO: '8h',
   ORDEM_TIMEOUT_MS: '3000',
   SALDO_INICIAL: '100000.00',
@@ -39,6 +40,7 @@ describe('validarEnv', () => {
     ['SALDO_INICIAL', '-1'],
     ['GATEWAY_DATABASE_URL', 'mysql://x'],
     ['JWT_SECRET', 'curto'],
+    ['LOG_LEVEL', 'verbose'],
   ])('recusa %s = %j', (nome, valor) => {
     expect(() => validarEnv({ ...envValido, [nome]: valor })).toThrow(nome);
   });
