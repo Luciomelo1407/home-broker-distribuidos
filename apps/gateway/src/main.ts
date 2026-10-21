@@ -10,6 +10,9 @@ async function bootstrap(): Promise<void> {
   // bufferLogs: os logs da subida esperam o pino ficar pronto, em vez de sair em texto
   const app = await NestFactory.create(AppModule, { abortOnError: false, bufferLogs: true });
   app.useLogger(app.get(Logger));
+  // O Home Broker é servido em outra porta. Qualquer origem é aceita porque a sessão é
+  // um JWT no header Authorization, não cookie: outro site não tem como usá-la
+  app.enableCors({ origin: true, exposedHeaders: ['x-request-id'] });
   app.enableShutdownHooks();
   const config = app.get<AppConfig>(ConfigService);
   await app.listen(config.get('GATEWAY_PORT', { infer: true }));

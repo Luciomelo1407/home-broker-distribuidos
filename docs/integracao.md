@@ -131,6 +131,21 @@
 - **O `GET /carteira` P1 também foi escrito pelo Dev 1** (PR `feat/gateway-carteira`), porque o
   `SNAPSHOT` do WebSocket usa as mesmas consultas (`carteira.queries.ts`: `buscarCarteira` e
   `listarOrdensAbertas`). Faltam a parte P2 (patrimônio, P/L) e o histórico (RF-008).
+- **O `web` P1 também foi escrito pelo Dev 1** (PR `feat/web-p1`): login, cadastro e painel com
+  mercado, nova ordem, minhas ordens, carteira e últimos negócios. O que existe:
+  - `state/reducer.ts`: reducer puro (SNAPSHOT substitui; os demais eventos alteram), testado com as
+    fixtures `evento-*` em `state/reducer.spec.ts`;
+  - `api/ws.ts`: reconecta a cada 2 s (RNF-11) e mostra "Desconectado, reconectando…"; token
+    recusado (4401) volta para o login;
+  - `api/config.ts`: sem `NEXT_PUBLIC_GATEWAY_URL`, usa o host da página na porta 3001, para o
+    Home Broker funcionar aberto de outra máquina (CA-01);
+  - a sessão fica no `localStorage` (F5 e reconexão não pedem login, RF-004);
+  - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
+    duplicar a ordem.
+  - Faltam: livro de ofertas (RF-007), histórico (RF-008), patrimônio e P/L (RF-005 P2) e
+    cancelamento (RF-012). O `LIVRO` é ignorado pelo reducer por enquanto.
+- O Gateway agora aceita CORS de qualquer origem (`main.ts`). É seguro porque a sessão é um JWT no
+  header, não cookie.
 - `nomeUsuario` aceita só letras, números, `.`, `-` e `_` (3 a 50). O schema `api-rest` só limita o
   tamanho; se quiser a mesma regra no contrato, acrescente o `pattern` lá.
 - `posicoes.preco_medio` tem 4 casas no banco, mas o contrato (`PrecoString`) aceita só 2: o

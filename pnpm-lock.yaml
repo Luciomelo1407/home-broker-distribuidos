@@ -120,6 +120,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@bolsa/contracts':
+        specifier: workspace:^
+        version: link:../../packages/contracts
       next:
         specifier: ^16.3.8
         version: 16.3.8(@types/node@26.6.3)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

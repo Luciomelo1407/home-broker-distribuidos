@@ -1,7 +1,7 @@
 # Ponto único de subida do sistema (RNF-09): docker compose up
 #
-# Postgres, Redis, o Motor (aplica as migrações e consome o stream "orders") e o Gateway.
-# Home Broker, Agentes e Prometheus entram aqui pelo seu dono (plano de implementação §3.2).
+# Postgres, Redis, o Motor (aplica as migrações e consome o stream "orders"), o Gateway e o
+# Home Broker. Agentes e Prometheus entram aqui pelo seu dono (plano de implementação §3.2).
 #
 # As portas de Postgres e Redis são publicadas só em 127.0.0.1, para rodar apps e
 # testes fora do Docker durante o desenvolvimento. Na demo, só Home Broker e
@@ -83,6 +83,17 @@ services:
       # O Motor aplica as migrações; o Gateway sobe depois e não depende dele para viver
       engine:
         condition: service_started
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      # Home Broker da demo (CA-01): abra http://<ip-da-máquina>:WEB_PORT em outro computador
+      - '${WEB_PORT:-3000}:80'
+    depends_on:
+      - gateway
     restart: unless-stopped
 
 volumes:

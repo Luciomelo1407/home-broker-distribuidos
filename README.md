@@ -154,6 +154,8 @@ Na primeira subida:
 4. O **Gateway** sobe na porta `GATEWAY_PORT` (3001): REST (`/auth/*`, `/ordens`, `/mercado`,
    `/carteira`) e WebSocket (`/ws?token=<jwt>`). Se subir antes de o Motor terminar as migrações
    num banco novo, ele sai com erro e o Docker o sobe de novo em seguida.
+5. O **Home Broker** (`web`) fica em `http://localhost:WEB_PORT` (3000). De outra máquina, use
+   `http://<ip-da-máquina>:3000`: ele fala com o Gateway no mesmo host, porta 3001.
 
 Para testar o fluxo inteiro com `curl`:
 

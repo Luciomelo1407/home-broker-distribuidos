@@ -1,4 +1,14 @@
-// Placeholder até as telas de login, cadastro e painel (F1, Dev 4).
-export default function Home() {
-  return <main>Simulador de Bolsa</main>;
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { lerSessao } from '../lib/sessao';
+
+/** Entrada: quem já tem sessão vai direto ao painel (RF-004). */
+export default function Inicio() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(lerSessao() ? '/painel/' : '/login/');
+  }, [router]);
+  return null;
 }
