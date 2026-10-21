@@ -5,8 +5,10 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Optional,
 } from '@nestjs/common';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { MetricasService } from '../observability/metricas.service';
 import { AppError, CodigoErro } from './app-error';
 import { HEADER_REQUEST_ID, obterRequestId } from './request-id';
 
@@ -31,6 +33,9 @@ interface ErroTraduzido {
 export class FiltroDeErros implements ExceptionFilter {
   private readonly logger = new Logger(FiltroDeErros.name);
 
+  // Opcional: o CommonModule também é testado sozinho, sem o ObservabilityModule
+  constructor(@Optional() private readonly metricas?: MetricasService) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     // WebSocket tem formato próprio (`{ tipo: 'ERRO' }`), tratado em realtime
     if (host.getType() !== 'http') {
@@ -45,6 +50,7 @@ export class FiltroDeErros implements ExceptionFilter {
     const { status, codigo, mensagem, campos } = this.traduzir(exception);
 
     if (status >= 500) {
+      this.metricas?.erro('http_5xx');
       this.logger.error(
         { requestId, metodo: req.method, rota: req.url, codigo },
         exception instanceof Error ? exception.stack : String(exception),

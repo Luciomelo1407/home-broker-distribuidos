@@ -37,6 +37,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 14  | `feat/gateway-ordens-cancelar`     | `GET` e `DELETE /ordens/:id`, T-10                          | Dev 4             |
 | 15  | `feat/load-tests-k6`               | k6 de ordens e SQL de conservação, 1ª medição (M5)          | Dev 3             |
 | 16  | `feat/gateway-livro`               | livro top-5 (RF-007): `GET /mercado/livro/:ativo` e `LIVRO` | Dev 4             |
+| 17  | `feat/gateway-metricas`            | métricas do Gateway (RF-026), `/metrics` e Prometheus       | Dev 2             |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi
@@ -55,7 +56,7 @@ decidido em nome de cada um.
 
 | Dono  | Pendência                                                                                                        |
 | ----- | ---------------------------------------------------------------------------------------------------------------- |
-| Dev 1 | k6 na máquina da demo e medição do RNF-02, métricas do Gateway (RF-026), `infra/prometheus`                      |
+| Dev 1 | k6 na máquina da demo, medir o RNF-02 (negócio até o WebSocket), ensaio de RF-004/RF-023 com o Home Broker       |
 | Dev 2 | T-06 (falha forçada no meio da gravação), métricas do Motor (RF-026), roteiro da demo CA-05                      |
 | Dev 3 | T-05 com mais cenários, se quiser; depois `agents` (F5)                                                          |
 | Dev 4 | seed dos agentes, carteira P2 (patrimônio, P/L), histórico (RF-008), livro (RF-007) e botão de cancelar no `web` |
@@ -92,6 +93,8 @@ Na primeira subida:
    num banco novo, ele sai com erro e o Docker o sobe de novo em seguida.
 5. O **Home Broker** (`web`) fica em `http://localhost:WEB_PORT` (3000). De outra máquina, use
    `http://<ip-da-máquina>:3000`: ele fala com o Gateway no mesmo host, porta 3001.
+6. O **Prometheus** fica em `http://localhost:9090` (só na máquina local) e lê `GET /metrics` do
+   Gateway a cada 5 s (RF-026).
 
 Para testar o fluxo inteiro com `curl`:
 

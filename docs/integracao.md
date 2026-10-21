@@ -129,6 +129,11 @@
   (`COMANDO_EXPIRADO`). Cancelamento recusado não grava nada.
 - `Rejeicao::ValorInvalido` na criação (total que não cabe em `decimal(15,2)`) vira
   `SALDO_INSUFICIENTE` na compra e `ACOES_INSUFICIENTES` na venda. `EstadoInvalido` para o Motor.
+- **Métricas (RF-026):** o Gateway já expõe as dele em `GET /metrics` com os nomes da
+  arquitetura §4.3, e o Prometheus do compose (`infra/prometheus/prometheus.yml`) já tem o alvo do
+  Motor comentado. Quando o `telemetry` existir, exponha `/metrics` numa porta HTTP do Motor e
+  descomente o alvo. Use os mesmos nomes (`bolsa_ordens_processadas_total` etc.) com o rótulo
+  `job` diferenciando Gateway e Motor.
 - Testes: `tests/processor.rs` cobre **T-07, T-08, T-09 e T-11** contra o Postgres real, com
   `TEST_DATABASE_URL` (o CI define). **Ainda faltam o T-06** (falha forçada no meio da gravação) e
   as métricas (RF-026).

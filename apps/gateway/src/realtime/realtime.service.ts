@@ -16,6 +16,7 @@ import { AuthService } from '../auth/auth.service';
 import { BusService, REDIS_COMANDOS } from '../bus/bus.service';
 import { CarteiraService } from '../carteira/carteira.service';
 import { LivroService } from '../mercado/livro.service';
+import { MetricasService } from '../observability/metricas.service';
 import { MercadoService } from '../mercado/mercado.service';
 import { eventosDoResultado } from './eventos';
 import { Presenca } from './presenca';
@@ -60,6 +61,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
     private readonly carteira: CarteiraService,
     private readonly mercado: MercadoService,
     private readonly livros: LivroService,
+    private readonly metricas: MetricasService,
     @Inject(REDIS_COMANDOS) redis: Redis,
   ) {
     this.presenca = new Presenca(redis);
@@ -124,6 +126,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
       pendentes: [],
     };
     this.conexoes.set(socket, conexao);
+    this.metricas.clienteConectou();
     socket.on('pong', () => {
       conexao.respondeuPing = true;
       this.presenca.renovar(conexao.id).catch((erro: unknown) => this.avisarRedis(erro));
@@ -160,6 +163,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
 
   private async fechar(socket: WebSocket, conexao: Conexao): Promise<void> {
     if (!this.conexoes.delete(socket)) return;
+    this.metricas.clienteDesconectou();
     this.logger.log({ userId: conexao.investidorId, conexao: conexao.id }, 'cliente desconectado');
     await this.presenca.remover(conexao.id).catch((erro: unknown) => this.avisarRedis(erro));
     await this.difundirPresenca();

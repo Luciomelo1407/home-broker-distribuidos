@@ -7,6 +7,7 @@ import request from 'supertest';
 import { CommonModule } from '../common/common.module';
 import type { RequisicaoAutenticada } from '../common/usuario-atual';
 import { DatabaseService } from '../database/database.service';
+import { MetricasService } from '../observability/metricas.service';
 import {
   BarramentoDeOrdens,
   BarramentoIndisponivel,
@@ -44,8 +45,9 @@ const enviarEAguardar = jest.fn<Promise<ResultadoOrdem>, [ComandoOrdem, number]>
     { provide: BarramentoDeOrdens, useValue: { enviarEAguardar } },
     { provide: ConfigService, useValue: { get: () => 3000 } },
     { provide: APP_GUARD, useClass: GuardDeTeste },
+    MetricasService,
   ],
-  exports: [DatabaseService, BarramentoDeOrdens, ConfigService],
+  exports: [DatabaseService, BarramentoDeOrdens, ConfigService, MetricasService],
 })
 class DependenciasFalsas {}
 
