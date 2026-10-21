@@ -40,6 +40,7 @@ anterior** (o primeiro contra a `main`) e integre na mesma ordem.
 | 17  | `feat/gateway-metricas`            | métricas do Gateway (RF-026), `/metrics` e Prometheus       | Dev 2             |
 | 18  | `feat/load-tests-tempo-real`       | medição do RNF-02 (negócio até o WebSocket)                 | Dev 3             |
 | 19  | `test/realtime-rf023`              | e2e do RF-023 e e2e do WebSocket independentes do livro     | Dev 2             |
+| 20  | `feat/gateway-carteira-p2`         | patrimônio e P/L (RF-005 P2) e `GET /historico` (RF-008)    | **Dev 4**         |
 
 Os itens 5 a 12 eram de outros devs no plano (§2). O Dev 1 os escreveu para fechar a Parte 1 a
 tempo. Quem é dono do módulo revisa o PR e continua dali; `docs/integracao.md` §7 lista o que foi

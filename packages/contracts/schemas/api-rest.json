@@ -34,6 +34,9 @@
     },
     {
       "$ref": "#/definitions/LivroResposta"
+    },
+    {
+      "$ref": "#/definitions/HistoricoResposta"
     }
   ],
   "definitions": {
@@ -251,7 +254,7 @@
     "CarteiraResposta": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["saldoDisponivel", "saldoReservado", "posicoes"],
+      "required": ["saldoDisponivel", "saldoReservado", "posicoes", "patrimonio", "lucroPrejuizo"],
       "properties": {
         "saldoDisponivel": {
           "$ref": "#/definitions/PrecoString"
@@ -264,7 +267,15 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["ativo", "quantidadeDisponivel", "quantidadeReservada", "precoMedio"],
+            "required": [
+              "ativo",
+              "quantidadeDisponivel",
+              "quantidadeReservada",
+              "precoMedio",
+              "precoAtual",
+              "valorAtual",
+              "lucroPrejuizo"
+            ],
             "properties": {
               "ativo": {
                 "type": "string"
@@ -279,11 +290,27 @@
               },
               "precoMedio": {
                 "$ref": "#/definitions/PrecoString"
+              },
+              "precoAtual": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "valorAtual": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "lucroPrejuizo": {
+                "$ref": "#/definitions/DinheiroComSinal"
               }
             }
           }
+        },
+        "patrimonio": {
+          "$ref": "#/definitions/PrecoString"
+        },
+        "lucroPrejuizo": {
+          "$ref": "#/definitions/DinheiroComSinal"
         }
-      }
+      },
+      "description": "GET /carteira (RF-005). Patrimônio e P/L calculados no SQL pelo Gateway, com o preço atual de cada ativo."
     },
     "MercadoResposta": {
       "type": "object",
@@ -369,6 +396,60 @@
               "quantidade": {
                 "type": "integer",
                 "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "DinheiroComSinal": {
+      "description": "Valor em reais que pode ser negativo (lucro/prejuízo).",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]{1,2})?$"
+    },
+    "HistoricoResposta": {
+      "description": "GET /historico (RF-008): as ordens mais recentes do investidor (todas as situações) e os negócios em que ele foi comprador ou vendedor, do mais novo para o mais antigo.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ordens", "negocios"],
+      "properties": {
+        "ordens": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/OrdemResposta"
+          }
+        },
+        "negocios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "ordemId", "ativo", "lado", "preco", "quantidade", "momento"],
+            "properties": {
+              "id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "ordemId": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "ativo": {
+                "type": "string"
+              },
+              "lado": {
+                "enum": ["COMPRA", "VENDA"]
+              },
+              "preco": {
+                "$ref": "#/definitions/PrecoString"
+              },
+              "quantidade": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "momento": {
+                "type": "string",
+                "format": "date-time"
               }
             }
           }

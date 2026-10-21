@@ -147,7 +147,15 @@ export class RealtimeService implements OnApplicationBootstrap, OnApplicationShu
       tipo: 'SNAPSHOT',
       dados: {
         saldo: carteira.saldoDisponivel,
-        posicoes: carteira.posicoes,
+        // O SNAPSHOT leva só a posição em si (schema evento-mercado); valor e P/L ficam no REST
+        posicoes: carteira.posicoes.map(
+          ({ ativo, quantidadeDisponivel, quantidadeReservada, precoMedio }) => ({
+            ativo,
+            quantidadeDisponivel,
+            quantidadeReservada,
+            precoMedio,
+          }),
+        ),
         ordensAbertas,
         mercado: this.mercado.resumo(),
       },

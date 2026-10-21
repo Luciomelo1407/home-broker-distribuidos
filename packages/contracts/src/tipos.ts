@@ -83,10 +83,37 @@ export interface LivroRespostaDto {
   ofertasVenda: OfertaLivroDto[];
 }
 
+/** Posição do GET /carteira: a do SNAPSHOT mais o valor a preço atual (RF-005 P2). */
+export interface PosicaoCarteiraDto extends PosicaoDto {
+  precoAtual: string;
+  valorAtual: string;
+  /** (preço atual − preço médio) × quantidade total; pode ser negativo. */
+  lucroPrejuizo: string;
+}
+
 export interface CarteiraRespostaDto {
   saldoDisponivel: string;
   saldoReservado: string;
-  posicoes: PosicaoDto[];
+  /** Saldo disponível + reservado + ações a preço atual. */
+  patrimonio: string;
+  lucroPrejuizo: string;
+  posicoes: PosicaoCarteiraDto[];
+}
+
+/** Negócio visto por um dos lados (GET /historico, RF-008). */
+export interface NegocioDoInvestidorDto {
+  id: number;
+  ordemId: number;
+  ativo: string;
+  lado: LadoOrdem;
+  preco: string;
+  quantidade: number;
+  momento: string;
+}
+
+export interface HistoricoRespostaDto {
+  ordens: OrdemRespostaDto[];
+  negocios: NegocioDoInvestidorDto[];
 }
 
 export interface MercadoRespostaDto {

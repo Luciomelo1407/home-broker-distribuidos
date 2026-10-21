@@ -155,6 +155,15 @@
 - **O `GET /carteira` P1 também foi escrito pelo Dev 1** (PR `feat/gateway-carteira`), porque o
   `SNAPSHOT` do WebSocket usa as mesmas consultas (`carteira.queries.ts`: `buscarCarteira` e
   `listarOrdensAbertas`). Faltam a parte P2 (patrimônio, P/L) e o histórico (RF-008).
+- **Carteira P2 e histórico também foram escritos pelo Dev 1** (PR `feat/gateway-carteira-p2`):
+  - `GET /carteira` ganhou `patrimonio` e `lucroPrejuizo` e, em cada posição, `precoAtual`,
+    `valorAtual` e `lucroPrejuizo`. Tudo é calculado no SQL; o P/L é
+    `(preço atual − preço médio) × (disponível + reservada)`. Como o preço médio inicial é 0
+    (decisão pendente abaixo), o P/L de quem acabou de se cadastrar já é o valor das ações.
+  - `GET /historico` (RF-008): as 100 ordens mais recentes, em qualquer status, e os 100
+    negócios mais recentes em que o investidor foi comprador ou vendedor, com o `lado` e o
+    `ordemId` dele (`HistoricoResposta` no `api-rest`).
+  - O `SNAPSHOT` continua levando só a posição em si: valor e P/L vêm do REST.
 - **O `web` P1 também foi escrito pelo Dev 1** (PR `feat/web-p1`): login, cadastro e painel com
   mercado, nova ordem, minhas ordens, carteira e últimos negócios. O que existe:
   - `state/reducer.ts`: reducer puro (SNAPSHOT substitui; os demais eventos alteram), testado com as
