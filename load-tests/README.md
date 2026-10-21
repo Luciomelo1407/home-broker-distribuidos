@@ -24,11 +24,16 @@ compose, banco recém-criado, 20 s por rodada.
 | Usuários | Ordens/s | Confirmação p95 | Máx.   | Falhas | Conferência |
 | -------- | -------- | --------------- | ------ | ------ | ----------- |
 | 5        | 14       | 14 ms           | 46 ms  | 0%     | —           |
+| 20       | ~55      | 14 ms           | 109 ms | 0%     | —           |
 | 50       | 126      | 18 ms           | 240 ms | 0%     | confere     |
 
 A conferência rodou depois da rodada de 50 (3.161 ordens, 2.127 negócios no banco): dinheiro, ações
 dos três ativos e reservas batem, e nada ficou negativo.
 
-**Falta para o CA-04:** rodar na máquina da demo, medir CPU e memória (`docker stats`), o tempo de
-um negócio chegar aos Home Brokers pelo WebSocket (RNF-02, ainda não medido), e a rodada de 20
-usuários.
+Durante a carga, o Prometheus (`http://localhost:9090`) mostra as mesmas grandezas pelo lado do
+servidor; as consultas prontas estão no topo de `infra/prometheus/prometheus.yml`. Na rodada de 20
+usuários, `histogram_quantile` deu p95 de 19 ms, coerente com o k6.
+
+**Falta para o CA-04:** rodar na máquina da demo, registrar CPU e memória (`docker stats` ou as
+métricas `bolsa_gateway_process_*`) e medir o tempo de um negócio chegar aos Home Brokers pelo
+WebSocket (RNF-02, ainda não medido).

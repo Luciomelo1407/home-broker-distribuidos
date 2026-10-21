@@ -6,6 +6,7 @@ import { AppError, CodigoErro } from '../common/app-error';
 import type { UsuarioAutenticado } from '../common/usuario-atual';
 import type { AppConfig } from '../config/config.module';
 import { DatabaseService } from '../database/database.service';
+import { MetricasService, type ResultadoDaOrdem } from '../observability/metricas.service';
 import {
   BarramentoDeOrdens,
   BarramentoIndisponivel,
@@ -25,6 +26,7 @@ export class OrdensService implements OnModuleInit {
     private readonly db: DatabaseService,
     private readonly barramento: BarramentoDeOrdens,
     @Inject(ConfigService) private readonly config: AppConfig,
+    private readonly metricas: MetricasService,
   ) {}
 
   /** Carrega os códigos dos ativos uma vez: o conjunto é fixo pela migração 0002. */
@@ -78,10 +80,24 @@ export class OrdensService implements OnModuleInit {
         { ...log, orderId: ordem.id, status: ordem.status, durMs: Date.now() - inicio },
         'ordem confirmada pelo Motor',
       );
+      this.medir(ordem.status === 'REJEITADA' ? 'rejeitada' : 'aceita', inicio);
       return ordem;
     } catch (erro) {
+      this.medir(
+        erro instanceof ComandoNaoConfirmado
+          ? 'nao_confirmada'
+          : erro instanceof BarramentoIndisponivel
+            ? 'indisponivel'
+            : 'erro',
+        inicio,
+      );
       throw this.traduzirFalha(erro, log, inicio);
     }
+  }
+
+  /** RF-026: só o POST /ordens entra na contagem e na latência das ordens. */
+  private medir(resultado: ResultadoDaOrdem, inicio: number): void {
+    this.metricas.ordemProcessada(resultado, (Date.now() - inicio) / 1000);
   }
 
   /**
