@@ -35,17 +35,21 @@ export const conservadora: Estrategia = {
     if (ativo === undefined || atual === undefined) return [];
     const livro = mercado.livros[ativo];
     const preco = centavos(atual);
+    const precoMinimo = ajustar(preco, -FAIXA_PB);
+    const precoMaximo = ajustar(preco, FAIXA_PB);
 
     if (aleatorio() < 0.5) {
       const alvo = melhorCompra(livro);
       const venda = melhorVenda(livro);
       let lance = limitar(
         alvo === undefined ? ajustar(preco, -sortear(aleatorio, 0, 50)) : alvo + 1n,
-        ajustar(preco, -FAIXA_PB),
+        precoMinimo,
         preco,
       );
       // Nunca cruza o spread: comprar a mercado é coisa do agressivo
       if (venda !== undefined && lance >= venda) lance = venda - 1n;
+      // RF-019/020: se não há preço positivo na faixa sem cruzar, aguarda.
+      if (lance < precoMinimo || lance <= 0n) return [];
       const orcamento = (centavos(carteira.saldoDisponivel) * PERCENTUAL_DO_SALDO) / 100n;
       const maximo = lance > 0n ? Number(orcamento / lance) : 0;
       const quantidade = Math.min(sortear(aleatorio, 1, 10), maximo);
@@ -60,9 +64,10 @@ export const conservadora: Estrategia = {
     let oferta = limitar(
       alvo === undefined ? ajustar(preco, sortear(aleatorio, 0, 50)) : alvo - 1n,
       preco,
-      ajustar(preco, FAIXA_PB),
+      precoMaximo,
     );
     if (compra !== undefined && oferta <= compra) oferta = compra + 1n;
+    if (oferta > precoMaximo) return [];
     const quantidade = Math.min(sortear(aleatorio, 1, 10), disponivel);
     return [{ ativo, lado: 'VENDA', quantidade, preco: emReais(oferta) }];
   },
