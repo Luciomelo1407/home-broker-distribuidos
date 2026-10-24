@@ -34,6 +34,9 @@ A faixa em volta do preço atual impede que uma oferta absurda no livro (uma com
 exemplo) arraste o preço: o RF-019 pede ordens "com preços próximos ao preço atual". A realização
 impede que seguir a tendência se realimente até o dinheiro dos agentes acabar.
 
+Se uma oferta do lado oposto impedir o conservador de manter um preço positivo dentro
+da faixa de 1% sem cruzar o spread, ele aguarda a próxima rodada sem enviar ordem.
+
 ## Comportamento observado (21/10/2026)
 
 Banco limpo, só os 5 agentes, sem humanos, 2 minutos:
