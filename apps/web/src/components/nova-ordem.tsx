@@ -3,6 +3,7 @@
 import type { CriarOrdemRequisicaoDto, LadoOrdem, OrdemRespostaDto } from '@bolsa/contracts';
 import { useEffect, useState, type FormEvent } from 'react';
 import { ErroApi } from '../api/rest';
+import { criarClientOrderId } from '../lib/client-order-id';
 
 interface Props {
   ativos: string[];
@@ -26,7 +27,7 @@ export function NovaOrdem({ ativos, sugestao, enviar }: Props) {
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string }>();
   const [enviando, setEnviando] = useState(false);
   // Reenvio depois de um 504 usa o mesmo id, para o Motor não duplicar (SD-04)
-  const [clientOrderId, setClientOrderId] = useState(() => crypto.randomUUID());
+  const [clientOrderId, setClientOrderId] = useState(criarClientOrderId);
 
   useEffect(() => {
     if (!ativo && ativos[0]) setAtivo(ativos[0]);
@@ -51,7 +52,7 @@ export function NovaOrdem({ ativos, sugestao, enviar }: Props) {
         quantidade: Number(quantidade),
         preco: preco.replace(',', '.'),
       });
-      setClientOrderId(crypto.randomUUID());
+      setClientOrderId(criarClientOrderId());
       setAviso(
         ordem.status === 'REJEITADA'
           ? {
@@ -63,7 +64,7 @@ export function NovaOrdem({ ativos, sugestao, enviar }: Props) {
     } catch (e) {
       const erro = e instanceof ErroApi ? e : undefined;
       // Só um 504 mantém o id: a ordem pode ter entrado, e o reenvio não a duplica
-      if (erro?.codigo !== 'NAO_CONFIRMADA') setClientOrderId(crypto.randomUUID());
+      if (erro?.codigo !== 'NAO_CONFIRMADA') setClientOrderId(criarClientOrderId());
       setAviso({ tipo: 'erro', texto: erro?.message ?? 'erro inesperado' });
     } finally {
       setEnviando(false);
