@@ -34,6 +34,26 @@ A faixa em volta do preço atual impede que uma oferta absurda no livro (uma com
 exemplo) arraste o preço: o RF-019 pede ordens "com preços próximos ao preço atual". A realização
 impede que seguir a tendência se realimente até o dinheiro dos agentes acabar.
 
+Se uma oferta do lado oposto impedir o conservador de manter um preço positivo dentro
+da faixa de 1% sem cruzar o spread, ele aguarda a próxima rodada sem enviar ordem.
+
+## Recuperação de sessão (25/10/2026)
+
+Se uma consulta, envio ou cancelamento receber `401`, o agente fecha o WebSocket
+antigo e tenta novo login depois de 3 segundos. Antes de negociar novamente,
+espera o `SNAPSHOT` da nova sessão. Callbacks da sessão anterior são ignorados,
+e uma rodada ainda pendente termina antes de iniciar outra sessão. Falha de rede
+ou resposta perdida não provoca reenvio automático de uma ordem.
+
+Cada requisição REST tem timeout de 5 segundos. `parar()` cancela a rodada e a
+reconexão agendadas e impede abrir outro socket se havia login em andamento.
+O método não aborta uma ordem já enviada: seu resultado pode ter sido persistido.
+
+Os testes de ciclo ficam em `src/agente.spec.ts`, e os do cliente em
+`src/client/gateway.spec.ts`. Um ensaio isolado com JWT de 5 segundos confirmou
+novo login e novas ordens dos cinco agentes após expirações reais. Roteiro e
+limitações em [`div3-validacao.md`](div3-validacao.md).
+
 ## Comportamento observado (21/10/2026)
 
 Banco limpo, só os 5 agentes, sem humanos, 2 minutos:

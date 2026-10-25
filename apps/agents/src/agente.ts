@@ -32,6 +32,11 @@ export class Agente {
   private ws?: WebSocket;
   private parado = false;
   private timer?: ReturnType<typeof setTimeout>;
+  private reconexao?: ReturnType<typeof setTimeout>;
+  private inicio?: Promise<void>;
+  private rodadaAtual?: Promise<void>;
+  private sessao = 0;
+  private recebeuSnapshot = false;
 
   constructor(gatewayUrl: string, nome: string, senha: string, estrategia: Estrategia) {
     this.cliente = new ClienteGateway(gatewayUrl);
@@ -41,16 +46,32 @@ export class Agente {
   }
 
   /** Entra e começa a negociar; tenta de novo sozinho se o Gateway cair. */
-  async iniciar(): Promise<void> {
+  iniciar(): Promise<void> {
+    if (this.inicio) return this.inicio;
+    if (this.parado || this.ws) return Promise.resolve();
+    clearTimeout(this.reconexao);
+    this.inicio = this.conectar().finally(() => {
+      this.inicio = undefined;
+    });
+    return this.inicio;
+  }
+
+  private async conectar(): Promise<void> {
     while (!this.parado) {
       try {
         await this.cliente.entrar(this.nome, this.senha);
+        if (this.parado) return;
+        const sessao = ++this.sessao;
         this.ws = this.cliente.abrirEventos(
-          (evento) => this.aoEvento(evento),
-          (codigo) => this.aoFechar(codigo),
+          (evento) => {
+            if (sessao === this.sessao && !this.parado) this.aoEvento(evento);
+          },
+          (codigo) => {
+            if (sessao === this.sessao) this.aoFechar(codigo);
+          },
         );
         log({ agente: this.nome, perfil: this.estrategia.perfil, msg: 'agente conectado' });
-        this.agendar();
+        this.agendar(sessao);
         return;
       } catch (erro) {
         log({
@@ -66,13 +87,17 @@ export class Agente {
 
   parar(): void {
     this.parado = true;
+    this.sessao++;
     clearTimeout(this.timer);
+    clearTimeout(this.reconexao);
     this.ws?.close();
+    this.ws = undefined;
   }
 
   private aoEvento(evento: EventoMercado): void {
     switch (evento.tipo) {
       case 'SNAPSHOT':
+        this.recebeuSnapshot = true;
         for (const ativo of evento.dados.mercado) {
           this.precos[ativo.ativo] = ativo.precoAtual;
           this.variacoes[ativo.ativo] = ativo.variacao;
@@ -106,28 +131,46 @@ export class Agente {
   }
 
   private aoFechar(codigo: number): void {
-    clearTimeout(this.timer);
     if (this.parado) return;
     log({ level: 'warn', agente: this.nome, codigo, msg: 'WebSocket fechado; entrando de novo' });
-    setTimeout(() => void this.iniciar(), ESPERA_RECONEXAO_MS);
+    this.reconectar();
   }
 
-  private agendar(): void {
+  private reconectar(): void {
+    // Invalida callbacks do socket antigo e o finally de uma rodada ainda pendente.
+    this.sessao++;
+    clearTimeout(this.timer);
+    clearTimeout(this.reconexao);
+    const ws = this.ws;
+    this.ws = undefined;
+    this.recebeuSnapshot = false;
+    this.precosAnteriores = {};
+    for (const ativo of Object.keys(this.livros)) delete this.livros[ativo];
+    ws?.close();
+    this.reconexao = setTimeout(() => {
+      // A rodada anterior termina antes de iniciar outra sessão: não duplica ordens.
+      void (this.rodadaAtual ?? Promise.resolve()).then(() => this.iniciar());
+    }, ESPERA_RECONEXAO_MS);
+  }
+
+  private agendar(sessao: number): void {
     const espera = this.estrategia.intervaloMs * (0.5 + Math.random());
     this.timer = setTimeout(() => {
-      this.rodada()
-        .catch((erro: unknown) =>
-          log({ level: 'warn', agente: this.nome, erro: String(erro), msg: 'rodada falhou' }),
-        )
+      this.rodadaAtual = this.rodada(sessao)
+        .catch((erro: unknown) => {
+          if (sessao !== this.sessao || this.parado) return;
+          log({ level: 'warn', agente: this.nome, erro: String(erro), msg: 'rodada falhou' });
+          if (erro instanceof ErroGateway && erro.status === 401) this.reconectar();
+        })
         .finally(() => {
-          if (!this.parado) this.agendar();
+          if (!this.parado && sessao === this.sessao) this.agendar(sessao);
         });
     }, espera);
   }
 
   /** Uma decisão: cancela o que envelheceu, pede intenções à estratégia e as envia. */
-  private async rodada(): Promise<void> {
-    if (Object.keys(this.precos).length === 0) return;
+  private async rodada(sessao: number): Promise<void> {
+    if (!this.recebeuSnapshot || Object.keys(this.precos).length === 0) return;
     const agora = Date.now();
     for (const [id, { desde }] of this.abertas) {
       if (agora - desde > IDADE_MAXIMA_ABERTA_MS) {
@@ -135,11 +178,13 @@ export class Agente {
           // Executou ou já foi cancelada nesse meio-tempo: o evento vai tirá-la da lista
           if (!(erro instanceof ErroGateway && erro.status === 409)) throw erro;
         });
+        if (sessao !== this.sessao || this.parado) return;
         this.abertas.delete(id);
       }
     }
 
     const carteira = await this.cliente.carteira();
+    if (sessao !== this.sessao || this.parado) return;
     const mercado: VisaoDoMercado = {
       precos: { ...this.precos },
       precosAnteriores: this.precosAnteriores,
@@ -157,7 +202,9 @@ export class Agente {
       Math.random,
     );
     for (const intencao of intencoes) {
+      if (sessao !== this.sessao || this.parado) return;
       const ordem = await this.cliente.enviarOrdem({ clientOrderId: randomUUID(), ...intencao });
+      if (sessao !== this.sessao || this.parado) return;
       // RF-020: os logs mostram o comportamento de cada perfil
       log({
         agente: this.nome,

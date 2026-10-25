@@ -91,6 +91,40 @@ describe('estratégia conservadora (RF-020)', () => {
     // 2% de R$ 100 = R$ 2, que não paga nem uma ação a R$ 24,91
     expect(ordem).toBeUndefined();
   });
+
+  it.each(['20.00', '24.75'])(
+    'aguarda se a venda a %s impedir uma compra na faixa sem cruzar',
+    (venda) => {
+      expect(conservadora.decidir(mercado({ venda }), carteira, sorteio(0, 0.1, 0))).toEqual([]);
+    },
+  );
+
+  it.each(['30.00', '25.25'])(
+    'aguarda se a compra a %s impedir uma venda na faixa sem cruzar',
+    (compra) => {
+      expect(conservadora.decidir(mercado({ compra }), carteira, sorteio(0, 0.9, 0))).toEqual([]);
+    },
+  );
+
+  it('compra no limite inferior quando ainda há um centavo antes da melhor venda', () => {
+    const [ordem] = conservadora.decidir(mercado({ venda: '24.76' }), carteira, sorteio(0, 0.1, 0));
+    expect(ordem).toMatchObject({ lado: 'COMPRA', preco: '24.75', quantidade: 1 });
+  });
+
+  it('vende no limite superior quando ainda há um centavo depois da melhor compra', () => {
+    const [ordem] = conservadora.decidir(
+      mercado({ compra: '25.24' }),
+      carteira,
+      sorteio(0, 0.9, 0),
+    );
+    expect(ordem).toMatchObject({ lado: 'VENDA', preco: '25.25', quantidade: 1 });
+  });
+
+  it('aguarda em vez de oferecer compra a zero quando o ativo e a venda valem um centavo', () => {
+    const barato = mercado({ venda: '0.01' });
+    barato.precos.ABC3 = '0.01';
+    expect(conservadora.decidir(barato, carteira, sorteio(0, 0.1, 0))).toEqual([]);
+  });
 });
 
 describe('estratégia agressiva (RF-020)', () => {

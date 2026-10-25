@@ -77,6 +77,7 @@ export class ClienteGateway {
     try {
       resposta = await fetch(`${this.url}${caminho}`, {
         ...init,
+        signal: AbortSignal.timeout(5_000),
         headers: {
           'content-type': 'application/json',
           ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
