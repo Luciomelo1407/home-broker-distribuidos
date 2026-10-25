@@ -57,8 +57,25 @@ a casca deve tratar isso como falha de invariante, e não rejeição comercial.
 
 `apps/engine/tests/domain.rs` cobre T-01, T-02, T-03, T-04, T-05 e T-11.
 T-05 confere conservação de dinheiro e ações após cada comando, correspondência
-entre reservas e ordens abertas e coerência do livro. Não se afirma cobertura
-≥90% sem medição. Testes de integração com banco e transporte dependem da casca.
+entre reservas e ordens abertas e coerência do livro. Em 25/10/2026, a medição com
+`cargo llvm-cov --test domain` cobriu 372 de 376 linhas instrumentadas do domínio
+(98,94%), acima da meta interna de 90%. Isso não significa cobertura de todos os
+caminhos de erro nem da casca. Comandos e escopo em
+[`div3-validacao.md`](div3-validacao.md).
 
-Agentes conservadores/agressivos, integração com processor e ensaios de carga
-continuam sendo etapas posteriores do plano, fora desta entrega do núcleo.
+## Integração e agentes
+
+O núcleo já está integrado ao `processor` do Dev 2, que aplica o estado apenas
+depois do COMMIT. Os testes de integração com Postgres continuam na casca.
+
+`apps/agents` contém os perfis conservador e agressivo e usa somente REST/WS do
+Gateway. O conservador aguarda se não consegue oferecer preço positivo na faixa
+de 1% sem cruzar o spread. Após `401`, o agente encerra a sessão antiga, refaz o
+login e espera novo snapshot. A geração de sessão invalida callbacks antigos;
+o novo ciclo espera a requisição anterior terminar. Requisições têm timeout de
+5 segundos e ordens com resultado incerto não são reenviadas automaticamente.
+
+O T-16 está em `load-tests/cenario-multiplayer.mjs`, com conferência de logs em
+`load-tests/rastro-multiplayer.mjs`. Foi executado com três clientes contra uma
+instância isolada. Essa prova não substitui T-15, carga de 5/20/50 usuários,
+medição de recursos e ensaio de falha, que continuam sendo fechamento conjunto.
