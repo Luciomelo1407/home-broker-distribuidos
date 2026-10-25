@@ -38,5 +38,35 @@ describe('seleção de ativo e preço', () => {
     );
     fireEvent.click(screen.getByRole('button', { name: 'Usar preço 25.00 na ordem' }));
     expect(escolher).toHaveBeenCalledExactlyOnceWith('25.00');
+    expect(screen.getByTestId('spread').textContent).toContain('—');
+  });
+
+  it('exibe spread correto entre melhor compra e melhor venda e permite clicar na linha inteira', () => {
+    const escolher = vi.fn();
+    render(
+      <Livro
+        ativo="PETR4"
+        livro={{
+          ativo: 'PETR4',
+          ofertasCompra: [
+            { preco: '30.00', quantidade: 500 },
+            { preco: '29.90', quantidade: 200 },
+          ],
+          ofertasVenda: [
+            { preco: '30.25', quantidade: 300 },
+            { preco: '30.40', quantidade: 100 },
+          ],
+        }}
+        aoEscolherPreco={escolher}
+      />,
+    );
+    // Spread: 30.25 - 30.00 = 0.25 -> R$ 0,25
+    expect(screen.getByTestId('spread').textContent).toContain('R$ 0,25');
+
+    // Clicar na linha da tabela seleciona o preço daquela linha
+    const linhaVenda = screen.getByText('300').closest('tr');
+    expect(linhaVenda).toBeTruthy();
+    fireEvent.click(linhaVenda!);
+    expect(escolher).toHaveBeenCalledWith('30.25');
   });
 });

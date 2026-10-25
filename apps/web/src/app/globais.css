@@ -335,3 +335,20 @@ button.pequeno {
   padding: 0.2rem 0.55rem;
   font-size: 0.8rem;
 }
+
+.topo-livro {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.topo-livro h2 {
+  margin: 0;
+}
+
+.spread strong {
+  color: var(--texto);
+}
