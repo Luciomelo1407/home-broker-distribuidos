@@ -71,7 +71,7 @@ decidido em nome de cada um.
 | Dev 1 | rodar k6 e `tempo-real.mjs` na máquina da demo (D-03), ensaio de RF-004/RF-023 com o Home Broker                           |
 | Dev 2 | revisar a casca do Motor e as métricas; ensaiar o `docs/demo-falha.md` na máquina da demo                                  |
 | Dev 3 | revisar o `agents` (`docs/agentes.md`); RF-021 (eventos econômicos, Could) se sobrar tempo                                 |
-| Dev 4 | revisão local de `auth`, seed, `carteira` e `web` concluída; validar com serviços reais e preparar o [PR](docs/pr-dev4.md) |
+| Dev 4 | revisão local de `auth`, seed, `carteira` e `web` concluída; validar com serviços reais                                    |
 
 ## Pré-requisitos
 
