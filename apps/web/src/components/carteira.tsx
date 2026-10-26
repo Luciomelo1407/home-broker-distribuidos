@@ -40,7 +40,7 @@ export function Carteira({ saldoDisponivel, saldoReservado, posicoes, patrimonio
             <div>
               <dt>Lucro / prejuízo</dt>
               <dd className={classeDoSinal(patrimonio.lucroPrejuizo)}>
-                {formatarDinheiro(patrimonio.lucroPrejuizo)}
+                {formatarDinheiro(patrimonio.lucroPrejuizo, { comSinal: true })}
               </dd>
             </div>
           </>
@@ -64,7 +64,9 @@ export function Carteira({ saldoDisponivel, saldoReservado, posicoes, patrimonio
               <td className="num">{formatarQuantidade(p.quantidadeReservada)}</td>
               <td className="num">{formatarDinheiro(p.precoMedio)}</td>
               <td className={`num ${classeDoSinal(pl(p.ativo) ?? '')}`}>
-                {pl(p.ativo) === undefined ? '—' : formatarDinheiro(pl(p.ativo) ?? '0')}
+                {pl(p.ativo) === undefined
+                  ? '—'
+                  : formatarDinheiro(pl(p.ativo) ?? '0', { comSinal: true })}
               </td>
             </tr>
           ))}

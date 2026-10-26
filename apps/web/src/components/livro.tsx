@@ -1,5 +1,5 @@
 import type { LivroRespostaDto } from '@bolsa/contracts';
-import { formatarDinheiro, formatarQuantidade } from '../lib/formato';
+import { calcularSpread, formatarDinheiro, formatarQuantidade } from '../lib/formato';
 
 interface Props {
   ativo: string;
@@ -12,6 +12,8 @@ interface Props {
  * preço pelo Gateway. O primeiro de cada lado é a melhor oferta (RF-006).
  */
 export function Livro({ ativo, livro, aoEscolherPreco }: Props) {
+  const { spreadTexto } = calcularSpread(livro);
+
   const lado = (titulo: string, classe: string, ofertas: LivroRespostaDto['ofertasCompra']) => (
     <div>
       <h3 className={classe}>{titulo}</h3>
@@ -31,9 +33,21 @@ export function Livro({ ativo, livro, aoEscolherPreco }: Props) {
                 key={o.preco}
                 className="clicavel"
                 onClick={() => aoEscolherPreco(o.preco)}
-                title="Usar este preço na ordem"
+                title={`Usar preço ${o.preco} na ordem`}
               >
-                <td className={`num ${classe}`}>{formatarDinheiro(o.preco)}</td>
+                <td className={`num ${classe}`}>
+                  <button
+                    type="button"
+                    className="secundario pequeno"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      aoEscolherPreco(o.preco);
+                    }}
+                    aria-label={`Usar preço ${o.preco} na ordem`}
+                  >
+                    {formatarDinheiro(o.preco)}
+                  </button>
+                </td>
                 <td className="num">{formatarQuantidade(o.quantidade)}</td>
               </tr>
             ))}
@@ -45,7 +59,12 @@ export function Livro({ ativo, livro, aoEscolherPreco }: Props) {
 
   return (
     <section className="cartao">
-      <h2>Livro de ofertas · {ativo}</h2>
+      <div className="topo-livro">
+        <h2>Livro de ofertas · {ativo}</h2>
+        <span className="sutil spread" data-testid="spread">
+          Spread: <strong>{spreadTexto}</strong>
+        </span>
+      </div>
       <div className="livro">
         {lado('Compra', 'alta', livro?.ofertasCompra ?? [])}
         {lado('Venda', 'queda', livro?.ofertasVenda ?? [])}

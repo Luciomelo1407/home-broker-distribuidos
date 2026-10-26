@@ -12,6 +12,15 @@ describe('formatação', () => {
   });
 
   it.each([
+    ['0', 'R$ 0,00'],
+    ['0.00', 'R$ 0,00'],
+    ['150.00', '+R$ 150,00'],
+    ['-150.00', '-R$ 150,00'],
+  ])('dinheiro com sinal %s → %s', (valor, esperado) => {
+    expect(formatarDinheiro(valor, { comSinal: true })).toBe(esperado);
+  });
+
+  it.each([
     ['1.42', '+1,42%'],
     ['-0.75', '-0,75%'],
     ['0.00', '0,00%'],

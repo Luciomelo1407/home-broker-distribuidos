@@ -143,23 +143,52 @@ describe('reducer do Home Broker', () => {
     expect(estado.livros[livro.dados.ativo]?.ofertasCompra).toEqual(livro.dados.ofertasCompra);
   });
 
-  it('HISTORICO completa as ordens sem desfazer o que veio por evento (RF-008)', () => {
+  it('HISTORICO avança a execução e não deixa uma resposta antiga reabri-la (RF-008)', () => {
     const historico = JSON.parse(
       readFileSync(join(FIXTURES, 'api-historico-res.json'), 'utf-8'),
     ) as HistoricoRespostaDto;
     const [rejeitada, executada] = historico.ordens as [OrdemRespostaDto, OrdemRespostaDto];
-    // A executada já chegou por evento com outro status: o evento é mais novo e prevalece
+    // O evento parcial é anterior à execução completa lida pelo histórico.
     let estado = reducer(estadoInicial, {
       tipo: 'ORDEM_ENVIADA',
-      ordem: { ...executada, status: 'PARCIAL' },
+      ordem: {
+        ...executada,
+        status: 'PARCIAL',
+        quantidadeExecutada: Math.floor(executada.quantidade / 2),
+      },
     });
     estado = reducer(estado, { tipo: 'HISTORICO', historico });
 
     expect(estado.ordens.map((o) => [o.id, o.status])).toEqual([
       [rejeitada.id, 'REJEITADA'],
-      [executada.id, 'PARCIAL'],
+      [executada.id, 'EXECUTADA'],
     ]);
     expect(estado.meusNegocios).toEqual(historico.negocios);
+    estado = reducer(estado, {
+      tipo: 'ORDEM_ENVIADA',
+      ordem: { ...executada, status: 'ABERTA', quantidadeExecutada: 0 },
+    });
+    expect(estado.ordens.find((o) => o.id === executada.id)?.status).toBe('EXECUTADA');
+  });
+
+  it('desconexão exige outro snapshot e descarta livro e totais antigos na retomada', () => {
+    let estado = evento(fixture('evento-snapshot.json'));
+    estado = reducer(estado, { tipo: 'EVENTO', evento: fixture('evento-livro.json') });
+    estado = reducer(estado, { tipo: 'CONEXAO', conectado: false });
+    expect(estado.carregado).toBe(false);
+    estado = reducer(estado, { tipo: 'EVENTO', evento: fixture('evento-snapshot.json') });
+    expect(estado.livros).toEqual({});
+    expect(estado.patrimonio).toBeUndefined();
+  });
+
+  it('Motor fora pausa operações até o próximo snapshot', () => {
+    let estado = evento({
+      tipo: 'ERRO',
+      dados: { codigo: 'MERCADO_INDISPONIVEL', mensagem: 'Motor fora' },
+    });
+    expect(estado.mercadoDisponivel).toBe(false);
+    estado = reducer(estado, { tipo: 'EVENTO', evento: fixture('evento-snapshot.json') });
+    expect(estado.mercadoDisponivel).toBe(true);
   });
 
   it('CARTEIRA traz o patrimônio e o P/L calculados no Gateway (RF-005)', () => {

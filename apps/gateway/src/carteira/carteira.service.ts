@@ -10,7 +10,11 @@ export class CarteiraService {
 
   /** RF-005: saldo, posições, patrimônio e P/L do investidor do token. */
   async carteira(investidorId: number): Promise<CarteiraRespostaDto> {
-    const carteira = await buscarCarteira(this.db, investidorId);
+    const carteira = await this.db.transacao(async (cliente) => {
+      // RF-005/RNF-01: saldo, posições e totais pertencem ao mesmo estado do banco.
+      await cliente.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      return buscarCarteira(cliente, investidorId);
+    });
     if (!carteira) {
       // Token válido de um investidor que não existe mais (ex.: banco recriado)
       throw new AppError(
@@ -29,6 +33,9 @@ export class CarteiraService {
 
   /** RF-008: ordens e negócios do investidor do token. */
   historico(investidorId: number): Promise<HistoricoRespostaDto> {
-    return buscarHistorico(this.db, investidorId);
+    return this.db.transacao(async (cliente) => {
+      await cliente.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
+      return buscarHistorico(cliente, investidorId);
+    });
   }
 }

@@ -197,8 +197,16 @@
   - `api/config.ts`: sem `NEXT_PUBLIC_GATEWAY_URL`, usa o host da página na porta 3001, para o
     Home Broker funcionar aberto de outra máquina (CA-01);
   - a sessão fica no `localStorage` (F5 e reconexão não pedem login, RF-004);
-  - `nova-ordem.tsx` gera o `clientOrderId` e só o mantém depois de um 504, para o reenvio não
-    duplicar a ordem.
+  - `nova-ordem.tsx` conserva o `clientOrderId` e o corpo inteiro da intenção após resultado
+    incerto (rede, timeout, 5xx ou resposta inválida). O reenvio é manual e repete a mesma
+    solicitação. A tentativa fica em `sessionStorage`, por investidor/aba, até confirmação ou
+    recusa definitiva; se o navegador negar armazenamento, a proteção fica só em memória.
+  - O UUID usa `crypto.getRandomValues`, para funcionar também no acesso HTTP por IP da demo.
+    O WebSocket só sinaliza estado sincronizado após o `SNAPSHOT`. As leituras REST descartam
+    respostas de sessão encerrada ou superadas por outra consulta.
+  - Saldo, posições e totais do `GET /carteira`, assim como ordens/negócios do histórico, são
+    lidos em transações `REPEATABLE READ READ ONLY`. Isso mantém cada resposta coerente durante
+    os commits concorrentes do Motor; não adiciona escrita de dinheiro ao Gateway.
   - **P2 também feita pelo Dev 1** (PR `feat/web-p2`): livro do ativo selecionado (RF-007; clicar
     num nível usa o preço na ordem), botão de cancelar nas ordens abertas e parciais (RF-012),
     "Meus negócios" a partir do `GET /historico` (RF-008) e patrimônio e P/L na carteira
