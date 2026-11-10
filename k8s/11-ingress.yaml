@@ -1,0 +1,36 @@
+# Ingress para exposição unificada da borda (Home Broker + API/WebSocket do Gateway)
+# Compatível com o controlador ingress-nginx no Minikube (minikube addons enable ingress) ou Kind.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: simulador-bolsa-ingress
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/part-of: simulador-bolsa
+  annotations:
+    # Suporte a conexões WebSocket de longa duração no Gateway (RF-018, RF-023)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '3600'
+    nginx.ingress.kubernetes.io/proxy-send-timeout: '3600'
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: bolsa.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+    - host: api.bolsa.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 3001

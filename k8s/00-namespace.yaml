@@ -1,0 +1,8 @@
+# Namespace dedicado para isolar recursos, políticas de rede e cotas do Simulador de Bolsa
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: simulador-bolsa
+    app.kubernetes.io/part-of: simulador-bolsa

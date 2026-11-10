@@ -1,0 +1,43 @@
+# HorizontalPodAutoscaler (HPA) para escalar o Gateway elasticamente durante os testes de carga
+# (cenários de 5, 20, 50 e 100+ usuários concorrentes — seção 7.7 / RNF-04 / RNF-13).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway-hpa
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: simulador-bolsa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 30

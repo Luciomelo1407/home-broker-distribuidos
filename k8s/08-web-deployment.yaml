@@ -1,0 +1,76 @@
+# Home Broker (Next.js exportado estaticamente e servido via Nginx na porta 80).
+# Exposto externamente via NodePort 30000 (e internamente na porta 80 para o Ingress).
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: simulador-bolsa
+spec:
+  type: NodePort
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: web
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: simulador-bolsa
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: simulador-bolsa
+    spec:
+      containers:
+        - name: web
+          image: simulador-bolsa/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          resources:
+            requests:
+              cpu: '50m'
+              memory: '64Mi'
+            limits:
+              cpu: '200m'
+              memory: '128Mi'
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
