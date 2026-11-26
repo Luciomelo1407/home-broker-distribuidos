@@ -1,0 +1,94 @@
+# Redis 7 (Stream de ordens, Pub/Sub de eventos e Presença com TTL) como StatefulSet + PVC.
+# Habilita persistência AOF para preservar o stream de comandos não confirmados em caso de reinício do pod.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: bus
+    app.kubernetes.io/part-of: simulador-bolsa
+spec:
+  type: ClusterIP
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/name: redis
+    app.kubernetes.io/component: bus
+    app.kubernetes.io/part-of: simulador-bolsa
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+        app.kubernetes.io/component: bus
+        app.kubernetes.io/part-of: simulador-bolsa
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          args:
+            - 'redis-server'
+            - '--appendonly'
+            - 'yes'
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+          resources:
+            requests:
+              cpu: '100m'
+              memory: '128Mi'
+            limits:
+              cpu: '500m'
+              memory: '256Mi'
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 3
+            periodSeconds: 3
+            timeoutSeconds: 2
+            failureThreshold: 5
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+        labels:
+          app.kubernetes.io/name: redis
+          app.kubernetes.io/part-of: simulador-bolsa
+      spec:
+        accessModes: ['ReadWriteOnce']
+        resources:
+          requests:
+            storage: 512Mi

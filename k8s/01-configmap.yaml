@@ -1,0 +1,76 @@
+# ConfigMap centralizando configurações não-sensíveis dos microsserviços,
+# o script de inicialização de papéis do PostgreSQL (db/init/01-papeis.sh)
+# e a configuração de scrape do Prometheus (infra/prometheus/prometheus.yml).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: bolsa-config
+  namespace: simulador-bolsa
+  labels:
+    app.kubernetes.io/part-of: simulador-bolsa
+data:
+  # --- Banco de Dados e Barramento ---
+  POSTGRES_DB: 'bolsa'
+  POSTGRES_USER: 'postgres'
+  REDIS_URL: 'redis://redis:6379'
+
+  # --- Gateway e Motor ---
+  GATEWAY_PORT: '3001'
+  ENGINE_METRICS_PORT: '9100'
+  LOG_LEVEL: 'info'
+  JWT_EXPIRACAO: '8h'
+  ORDEM_TIMEOUT_MS: '3000'
+
+  # --- Regras iniciais do mercado (S-01) ---
+  SALDO_INICIAL: '100000.00'
+  ACOES_INICIAIS: '1000'
+
+  # --- Agentes Automáticos (RF-019, RF-020, Q-03) ---
+  GATEWAY_URL: 'http://gateway:3001'
+  AGENTES_CONSERVADORES: '3'
+  AGENTES_AGRESSIVOS: '2'
+
+  # --- Script de inicialização de papéis do Postgres (db/init/01-papeis.sh) ---
+  01-papeis.sh: |
+    #!/bin/sh
+    # Roda uma única vez, quando o PersistentVolume do Postgres é inicializado.
+    # Cria os dois papéis da aplicação. O que cada um pode fazer é definido em
+    # db/migrations/0003_grants.sql, aplicado pelo Motor ao subir.
+    set -eu
+
+    : "${ENGINE_DB_PASSWORD:?defina ENGINE_DB_PASSWORD no Secret}"
+    : "${GATEWAY_DB_PASSWORD:?defina GATEWAY_DB_PASSWORD no Secret}"
+
+    psql -v ON_ERROR_STOP=1 \
+      --username "$POSTGRES_USER" \
+      --dbname "$POSTGRES_DB" \
+      --set engine_senha="$ENGINE_DB_PASSWORD" \
+      --set gateway_senha="$GATEWAY_DB_PASSWORD" \
+      --set banco="$POSTGRES_DB" <<'SQL'
+    -- engine_app: único escritor de dinheiro, ações, ordens e negócios.
+    -- É dono do banco (e, portanto, do schema public) para aplicar as migrações.
+    CREATE ROLE engine_app LOGIN PASSWORD :'engine_senha';
+
+    -- gateway_app: lê tudo e só insere no cadastro (permissões em 0003_grants.sql).
+    CREATE ROLE gateway_app LOGIN PASSWORD :'gateway_senha';
+
+    ALTER DATABASE :"banco" OWNER TO engine_app;
+    REVOKE ALL ON DATABASE :"banco" FROM PUBLIC;
+    GRANT CONNECT ON DATABASE :"banco" TO engine_app, gateway_app;
+    SQL
+
+  # --- Configuração do Prometheus no cluster (descoberta DNS de todas as réplicas do Gateway) ---
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+
+    scrape_configs:
+      - job_name: gateway
+        dns_sd_configs:
+          - names:
+              - 'gateway-headless.simulador-bolsa.svc.cluster.local'
+            type: 'A'
+            port: 3001
+      - job_name: engine
+        static_configs:
+          - targets: ['engine:9100']

@@ -1,0 +1,20 @@
+# Kustomization para aplicar todos os manifestos em ordem declarativa:
+#   kubectl apply -k k8s/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: simulador-bolsa
+
+resources:
+  - 00-namespace.yaml
+  - 01-configmap.yaml
+  - 02-secret.yaml
+  - 03-postgres-statefulset.yaml
+  - 04-redis-statefulset.yaml
+  - 05-engine-deployment.yaml
+  - 06-gateway-deployment.yaml
+  - 07-gateway-hpa.yaml
+  - 08-web-deployment.yaml
+  - 09-agents-deployment.yaml
+  - 10-prometheus-deployment.yaml
+  - 11-ingress.yaml
