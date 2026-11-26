@@ -60,13 +60,13 @@ echo "==> [3/4] Aplicando manifestos Kubernetes via Kustomize (kubectl apply -k 
 kubectl apply -k "${SCRIPT_DIR}"
 
 echo "==> [4/4] Aguardando camadas de dados e microsserviços ficarem Ready no namespace '${NAMESPACE}'..."
-kubectl rollout status statefulset/postgres -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status statefulset/redis -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status deployment/engine -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status deployment/gateway -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status deployment/web -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status deployment/agents -n "${NAMESPACE}" --timeout=120s
-kubectl rollout status deployment/prometheus -n "${NAMESPACE}" --timeout=120s
+kubectl rollout status statefulset/postgres -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status statefulset/redis -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/engine -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/gateway -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/web -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/agents -n "${NAMESPACE}" --timeout=300s
+kubectl rollout status deployment/prometheus -n "${NAMESPACE}" --timeout=300s
 
 echo ""
 echo "=================================================================="
@@ -78,3 +78,4 @@ echo "Dica para expor localmente via port-forward (compatível com Kind e Miniku
 echo "  kubectl port-forward -n ${NAMESPACE} svc/web 3000:80 &"
 echo "  kubectl port-forward -n ${NAMESPACE} svc/gateway 3001:3001 &"
 echo "  kubectl port-forward -n ${NAMESPACE} svc/prometheus 9090:9090 &"
+
